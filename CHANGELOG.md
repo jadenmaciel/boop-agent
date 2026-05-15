@@ -8,6 +8,12 @@ Format:
 
 ---
 
+## Unreleased — Cross-runtime slash-command upgrade workflow
+
+- Changed: `/upgrade-boop` is the single documented upgrade path. The upstream reminder printed by `npm run dev` now points users to open Codex or Claude in the repo and run `/upgrade-boop`.
+- Changed: README/package metadata now lead with the runtime choice: Claude Code subscription via the Claude Agent SDK, or Codex / ChatGPT subscription via the local Codex runtime.
+- Changed: upgrade and contribution docs now make the cross-runtime skill convention explicit: migration skills referenced from `[BREAKING]` CHANGELOG entries should be mirrored in both `.claude/skills/` and `.agents/skills/` unless intentionally provider-specific.
+
 ## Unreleased — Local embeddings fallback + mandatory recall
 
 - Added: free local embedding fallback via `@huggingface/transformers` (`Xenova/bge-large-en-v1.5`, 1024-dim). `server/embeddings.ts` now tries Voyage → OpenAI → local in order. All three providers produce 1024-dim vectors so the existing Convex `vectorIndex("by_embedding", { dimensions: 1024 })` stays compatible — users running with a paid key see no change; users without one go from "recall silently degraded to literal substring match" to working semantic recall out of the box.

@@ -1,8 +1,8 @@
 {
   "name": "boop-agent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Text-an-agent starter: iMessage your Claude agent, it runs sub-agents, remembers you, and grows with integrations you add.",
+  "description": "Text-an-agent starter: iMessage your Claude or Codex-backed agent, with sub-agents, memory, automations, and integrations.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -16,6 +16,7 @@
     "dev:convex": "convex dev",
     "dev:debug": "vite --config debug/vite.config.ts",
     "build:debug": "vite build --config debug/vite.config.ts",
+    "codex:protocol": "codex app-server generate-ts --out server/runtimes/codex-app-server-protocol --experimental",
     "start": "npm run preflight && tsx server/index.ts",
     "deploy:convex": "convex deploy",
     "typecheck": "tsc --noEmit"
