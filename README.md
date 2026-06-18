@@ -54,6 +54,7 @@ Built on:
 - **Heartbeat + retry** — stuck agents auto-fail, debug dashboard can retry.
 - **Composio-powered integrations** — one API key unlocks 1000+ toolkits. Connect Gmail, Slack, GitHub, Linear, Notion, Drive, HubSpot, etc. with a click from the debug dashboard. Composio handles OAuth + token refresh.
 - **Optional local browser use** — when enabled in Settings, spawned agents can use a Patchright-backed Chrome profile for login-required services, visual workflows, or pages that reject ordinary automation.
+- **Optional local Apple data** — Mac-only, read-only iMessage, Apple Notes, and Apple Reminders connectors that stay off until you enable Apple data and connect each source in the debug dashboard.
 - **Debug dashboard** (React + Vite) with a Boop mascot — Dashboard (usage, known cost, tokens, agent status), Agents (timeline + integration logos), Automations, Memory (table + force-directed graph), Events, Connections.
 - **Convex** for persistence — real-time, typed, free tier.
 - **Uses your Claude Code or Codex/ChatGPT subscription** — choose during setup, with no separate provider API key required.
@@ -400,6 +401,8 @@ Everything lives in `.env.local` (auto-created by `npm run setup`). See `.env.ex
 | `BOOP_BROWSER_START_URL` | no | Optional URL to open when launching the local browser without an explicit URL. |
 | `BOOP_BROWSER_CHANNEL` / `BOOP_BROWSER_EXECUTABLE_PATH` | no | Chrome channel or explicit browser binary path for Patchright. Default channel `chrome`. |
 | `BOOP_BROWSER_EXTRA_ARGS` | no | Optional newline-separated Chrome flags. Only `--flag` lines are used. |
+| `BOOP_APPLE_ENABLED` | no | Fallback master switch for optional local Apple data. Default `false`. Once changed in the dashboard, the Convex `settings` row takes precedence over this env var. |
+| `BOOP_APPLE_MESSAGES_ENABLED` / `BOOP_APPLE_NOTES_ENABLED` / `BOOP_APPLE_REMINDERS_ENABLED` | no | Per-source fallbacks for local iMessage, Apple Notes, and Apple Reminders. Each defaults to `false`, so enabling one source does not implicitly enable the others. |
 | `BOOP_UPSTREAM_CHECK` | no | Set to `false` to disable the new-version banner on `npm run dev`. Default: on. |
 | `PORT` | no | Default `3456`. |
 | `PUBLIC_URL` | no | Base URL used in the Sendblue webhook. Composio handles its own OAuth callbacks on `platform.composio.dev`, so this is just for inbound iMessage. |
@@ -427,6 +430,38 @@ The browser uses a persistent Chrome profile, so cookies and login state can car
 Browser control HTTP routes are local-only. Requests forwarded through a public tunnel are rejected, so your ngrok/Sendblue URL cannot launch, close, or install a local browser.
 
 For Codex runtime, local browser tools are exposed internally under the `local_browser` namespace to avoid Codex's reserved browser namespace. The user-facing integration name remains `browser`.
+
+---
+
+## Local Apple data
+
+Local Apple data is optional, Mac-only, and read-only. It is designed for private single-user local runs where you want Boop to answer questions about data already on the Mac running the server.
+
+It is off by default in two layers:
+
+1. The master Apple data switch must be enabled.
+2. Each source must be connected separately: iMessage, Apple Notes, and Apple Reminders.
+
+Turn it on from the debug dashboard:
+
+1. Start Boop locally with `npm run dev`.
+2. Open `http://localhost:5173`.
+3. Go to **Connections → Local Mac**.
+4. Click **Connect** only for the sources you want Boop to read.
+5. Use **Disconnect** to turn any source off again.
+
+You can also view the overall Apple status from **Settings → Apple data**. Dashboard changes are stored in Convex's `settings` table and override `.env.local` fallbacks. The env vars in `.env.example` are useful for first-run defaults, but they are not required.
+
+| Source | Permission | Notes |
+|---|---|---|
+| iMessage / SMS history | Full Disk Access for the terminal, Codex app, or process running `npm run dev` | Reads `~/Library/Messages/chat.db` locally through `/usr/bin/sqlite3`. |
+| Apple Notes | macOS Automation permission for Notes | Uses `/usr/bin/osascript` and exposes search/read tools only. |
+| Apple Reminders | macOS Automation permission for Reminders | Uses `/usr/bin/osascript` and exposes list tools only. |
+| Apple Calendar | Optional Apple bridge | Calendar events are not read by the local server path in this repo. |
+
+The control routes for local Apple data are localhost-only; public tunnel traffic cannot enable or disable local Apple access. Tool output is redacted before it reaches the agent/user: phone numbers and contact handles are hidden in Apple outputs, replies, and outgoing iMessage/log paths.
+
+On non-macOS machines, Local Mac connection cards are hidden or report unavailable. Composio integrations and the rest of Boop continue to work normally.
 
 ---
 
@@ -532,8 +567,14 @@ boop-agent/
 │   ├── composio.ts                # Composio SDK wrapper (session + toolkit scoping)
 │   ├── composio-routes.ts         # /composio/* HTTP routes for the Debug UI
 │   ├── browser-routes.ts          # /browser/* HTTP routes for Local browser use
+│   ├── apple-routes.ts            # /apple/* local-only routes for Local Mac data
 │   ├── broadcast.ts               # WS fanout
 │   ├── convex-client.ts           # Convex HTTP client
+│   ├── apple/
+│   │   ├── tools.ts               # Read-only Apple runtime/MCP tools
+│   │   ├── messages-local.ts      # Local iMessage SQLite reader
+│   │   ├── notes-local.ts         # Local Apple Notes osascript reader
+│   │   └── reminders-local.ts     # Local Apple Reminders osascript reader
 │   ├── browser/
 │   │   ├── launcher.ts            # Patchright Chrome launch/status/actions
 │   │   └── tools.ts               # Local browser runtime/MCP tools
