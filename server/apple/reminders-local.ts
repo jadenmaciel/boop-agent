@@ -232,7 +232,7 @@ end joinJson
 
 const REQUEST_REMINDERS_ACCESS_SCRIPT = String.raw`
 tell application "Reminders"
-  set reminderCount to count of reminders
+  set listCount to count of lists
 end tell
 return "{\"ok\":true}"
 `;
