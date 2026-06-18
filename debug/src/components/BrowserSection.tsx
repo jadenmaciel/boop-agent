@@ -177,6 +177,16 @@ export function BrowserSection({ isDark }: { isDark: boolean }) {
   const label = isDark ? "text-zinc-50" : "text-zinc-950";
   const running = status?.running ?? false;
   const settings = status?.settings;
+  const customExecutablePath = settings?.executablePath.trim() ?? "";
+  const browserDetected = Boolean(status?.detectedChromePath);
+  const browserReadiness = status
+    ? browserDetected
+      ? "Ready"
+      : customExecutablePath
+        ? "Custom path"
+        : "Install needed"
+    : "...";
+  const browserInstallNeeded = Boolean(status && !browserDetected && !customExecutablePath);
   const launchedAt = status?.launchedAt
     ? new Date(status.launchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : null;
@@ -251,11 +261,21 @@ export function BrowserSection({ isDark }: { isDark: boolean }) {
             />
             <StatusMetric
               label="Browser"
-              value={status?.detectedChromePath ? "Detected" : "Not detected"}
+              value={browserReadiness}
               icon={ComputerSettingsIcon}
+              tone={browserInstallNeeded ? "warn" : undefined}
               isDark={isDark}
             />
           </div>
+
+          {browserInstallNeeded && (
+            <BrowserInstallNotice
+              isDark={isDark}
+              busy={busy === "Install"}
+              disabled={busy !== null}
+              onInstall={() => callBrowser("Install", "install")}
+            />
+          )}
 
           {status?.activeUrl && (
             <div className={subtlePanelClass(isDark, "px-3 py-2 text-[11px] mono truncate text-zinc-500")}>
@@ -493,33 +513,96 @@ function StatusMetric({
   label,
   value,
   icon,
+  tone = "default",
   isDark,
 }: {
   label: string;
   value: string;
   icon: any;
+  tone?: "default" | "warn";
   isDark: boolean;
 }) {
+  const toneClass =
+    tone === "warn"
+      ? isDark
+        ? "bg-amber-500/10 text-amber-200"
+        : "bg-amber-50 text-amber-800"
+      : isDark
+        ? "bg-white/5"
+        : "bg-zinc-50";
+  const iconClass =
+    tone === "warn"
+      ? isDark
+        ? "text-amber-300"
+        : "text-amber-600"
+      : isDark
+        ? "text-zinc-500"
+        : "text-zinc-400";
+  const valueClass =
+    tone === "warn"
+      ? isDark
+        ? "text-amber-100"
+        : "text-amber-800"
+      : isDark
+        ? "text-zinc-200"
+        : "text-zinc-700";
   return (
     <div
-      className={`rounded-lg px-3 py-2.5 flex items-center gap-2 min-w-0 ${
-        isDark ? "bg-white/5" : "bg-zinc-50"
-      }`}
+      className={`rounded-lg px-3 py-2.5 flex items-center gap-2 min-w-0 ${toneClass}`}
     >
       <HugeiconsIcon
         icon={icon}
         size={16}
         strokeWidth={1.8}
-        className={isDark ? "text-zinc-500" : "text-zinc-400"}
+        className={iconClass}
       />
       <div className="min-w-0">
         <div className={`text-[10px] uppercase tracking-wider ${isDark ? "text-zinc-500" : "text-zinc-400"}`}>
           {label}
         </div>
-        <div className={`text-xs truncate ${isDark ? "text-zinc-200" : "text-zinc-700"}`}>
+        <div className={`text-xs truncate ${valueClass}`}>
           {value}
         </div>
       </div>
+    </div>
+  );
+}
+
+function BrowserInstallNotice({
+  isDark,
+  busy,
+  disabled,
+  onInstall,
+}: {
+  isDark: boolean;
+  busy: boolean;
+  disabled: boolean;
+  onInstall: () => void;
+}) {
+  return (
+    <div
+      className={`rounded-lg border px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+        isDark
+          ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+          : "border-amber-200 bg-amber-50 text-amber-900"
+      }`}
+    >
+      <div className="min-w-0">
+        <div className="text-xs font-semibold">Browser install needed</div>
+        <div className={`text-[11px] mt-1 leading-relaxed ${isDark ? "text-amber-100/75" : "text-amber-800"}`}>
+          No compatible Chrome/Chromium binary was detected. Browser agents will fail until
+          the Patchright browser is installed or a valid executable path is saved.
+        </div>
+      </div>
+      <BrowserButton
+        icon={Download01Icon}
+        isDark={isDark}
+        disabled={disabled}
+        onClick={onInstall}
+        className="shrink-0"
+      >
+        {busy ? "Installing..." : "Install browser"}
+      </BrowserButton>
     </div>
   );
 }
