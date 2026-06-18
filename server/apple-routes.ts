@@ -9,20 +9,23 @@ import {
   APPLE_ENABLED_KEY,
   APPLE_MESSAGES_ENABLED_KEY,
   APPLE_NOTES_ENABLED_KEY,
+  APPLE_REMINDERS_ENABLED_KEY,
   clearAppleSettingsCache,
   getAppleSettings,
 } from "./runtime-config.js";
 import { getAppleBridgeStatus, type AppleBridgeStatus } from "./apple/client.js";
 import { requestLocalNotesAccess } from "./apple/notes-local.js";
+import { requestLocalRemindersAccess } from "./apple/reminders-local.js";
 
 interface AppleStatusResponse {
   enabled: boolean;
   messagesEnabled: boolean;
   notesEnabled: boolean;
+  remindersEnabled: boolean;
   bridge: AppleBridgeStatus;
 }
 
-type AppleSource = "messages" | "notes";
+type AppleSource = "messages" | "notes" | "reminders";
 
 const execFileAsync = promisify(execFile);
 const FULL_DISK_ACCESS_URL =
@@ -50,6 +53,7 @@ async function appleStatus(): Promise<AppleStatusResponse> {
     enabled: settings.enabled,
     messagesEnabled: settings.messagesEnabled,
     notesEnabled: settings.notesEnabled,
+    remindersEnabled: settings.remindersEnabled,
     bridge,
   };
 }
@@ -67,7 +71,12 @@ async function setAppleSourceEnabled(
   source: AppleSource,
   enabled: boolean,
 ): Promise<AppleStatusResponse> {
-  const key = source === "messages" ? APPLE_MESSAGES_ENABLED_KEY : APPLE_NOTES_ENABLED_KEY;
+  const key =
+    source === "messages"
+      ? APPLE_MESSAGES_ENABLED_KEY
+      : source === "notes"
+        ? APPLE_NOTES_ENABLED_KEY
+        : APPLE_REMINDERS_ENABLED_KEY;
   await Promise.all([
     enabled
       ? convex.mutation(api.settings.set, {
@@ -158,6 +167,22 @@ export function createAppleRouter(): express.Router {
     }
   });
 
+  router.post("/reminders/enable", async (_req, res) => {
+    try {
+      res.json(await setAppleSourceEnabled("reminders", true));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  router.post("/reminders/disable", async (_req, res) => {
+    try {
+      res.json(await setAppleSourceEnabled("reminders", false));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   router.post("/open-full-disk-access", async (_req, res) => {
     try {
       await openFullDiskAccessSettings();
@@ -170,6 +195,15 @@ export function createAppleRouter(): express.Router {
   router.post("/request-notes-access", async (_req, res) => {
     try {
       await requestLocalNotesAccess();
+      res.json(await appleStatus());
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  router.post("/request-reminders-access", async (_req, res) => {
+    try {
+      await requestLocalRemindersAccess();
       res.json(await appleStatus());
     } catch (err) {
       res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });

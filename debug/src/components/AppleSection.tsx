@@ -112,6 +112,31 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
     }
   }
 
+  async function requestRemindersAccess() {
+    setBusy("Reminders");
+    setMessage(null);
+    try {
+      const res = await fetch("/api/apple/request-reminders-access", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `status ${res.status}`);
+      }
+      const nextStatus = (await res.json()) as AppleStatus;
+      setStatus(nextStatus);
+      const reminders = nextStatus.bridge.permissions?.reminders;
+      setMessage({
+        tone: reminders === "granted" ? "ok" : "err",
+        text: reminders === "granted"
+          ? "Apple Reminders access is live."
+          : "Apple Reminders access still needs macOS Automation permission.",
+      });
+    } catch (err) {
+      setMessage({ tone: "err", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function openAutomationSettings() {
     setBusy("Automation");
     setMessage(null);
@@ -123,7 +148,7 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
       }
       setMessage({
         tone: "ok",
-        text: "Opened Automation settings. Enable Notes for Codex, Terminal, or the app running Boop.",
+        text: "Opened Automation settings. Enable Notes or Reminders for Codex, Terminal, or the app running Boop.",
       });
     } catch (err) {
       setMessage({ tone: "err", text: err instanceof Error ? err.message : String(err) });
@@ -138,6 +163,7 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
   const bridge = status?.bridge ?? null;
   const running = bridge?.running ?? false;
   const notesPermission = bridge?.permissions?.notes ?? "notDetermined";
+  const remindersPermission = bridge?.permissions?.reminders ?? "notDetermined";
   const showAppleSection =
     !loaded || bridge?.source === "local-server" || bridge?.source === "desktop-bridge";
 
@@ -157,8 +183,8 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
           <div className="min-w-0">
             <div className={`text-sm font-medium ${label}`}>Apple data (local Mac)</div>
             <div className={`text-xs mt-1 leading-relaxed max-w-3xl ${muted}`}>
-              iMessage uses Full Disk Access. Notes uses macOS Automation permission.
-              Calendar and Reminders use the optional Apple bridge.
+              iMessage uses Full Disk Access. Notes and Reminders use macOS Automation permission.
+              Calendar uses the optional Apple bridge.
             </div>
             <div className={`text-[10px] mono mt-2 ${subtle}`}>
               {storedEnabled === undefined
@@ -220,7 +246,7 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
           </div>
         ) : (
           <div className={subtlePanelClass(isDark, "px-3 py-3 text-xs leading-relaxed text-zinc-500")}>
-            Apple data reads only work on macOS. Calendar and Reminders require the optional Apple bridge.
+            Apple data reads only work on macOS. Calendar requires the optional Apple bridge.
             {bridge?.error && (
               <span className={`block mt-1.5 mono text-[11px] ${isDark ? "text-rose-300" : "text-rose-600"}`}>
                 {bridge.error}
@@ -273,6 +299,51 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
             </div>
           </div>
         )}
+        {enabled && running && bridge?.source === "local-server" && remindersPermission !== "granted" && (
+          <div
+            className={`mt-3 rounded-2xl border px-3 py-3 text-xs leading-relaxed ${
+              remindersPermission === "denied"
+                ? isDark
+                  ? "border-rose-500/25 bg-rose-500/10 text-rose-200"
+                  : "border-rose-200 bg-rose-50 text-rose-700"
+                : isDark
+                  ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                  : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Enable read-only Apple Reminders by allowing macOS Automation access to Reminders.
+              </span>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={requestRemindersAccess}
+                  disabled={busy !== null}
+                  className={`rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    isDark
+                      ? "bg-zinc-100 text-zinc-950 hover:bg-white disabled:opacity-50"
+                      : "bg-zinc-950 text-white hover:bg-zinc-800 disabled:opacity-50"
+                  }`}
+                >
+                  {busy === "Reminders" ? "Checking..." : "Enable Reminders"}
+                </button>
+                <button
+                  type="button"
+                  onClick={openAutomationSettings}
+                  disabled={busy !== null}
+                  className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    isDark
+                      ? "border-white/10 text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                      : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
+                  }`}
+                >
+                  Automation Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {message && <MessageLine message={message} isDark={isDark} />}
       </div>
     </section>
@@ -280,12 +351,13 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
 }
 
 function localServerLabel(permissions: ApplePermissions | null): string {
-  const messagesLive = permissions?.messages === "granted";
-  const notesLive = permissions?.notes === "granted";
-  if (messagesLive && notesLive) return "Local server connected (iMessage + Notes live)";
-  if (messagesLive) return "Local server connected (iMessage live, Notes pending)";
-  if (notesLive) return "Local server connected (Notes live)";
-  return "Local server connected";
+  const readable = [
+    permissions?.messages === "granted" ? "iMessage" : null,
+    permissions?.notes === "granted" ? "Notes" : null,
+    permissions?.reminders === "granted" ? "Reminders" : null,
+  ].filter(Boolean);
+  if (readable.length === 0) return "Local server connected";
+  return `Local server connected (${readable.join(" + ")} live)`;
 }
 
 function PermissionChip({

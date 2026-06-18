@@ -91,6 +91,14 @@ const TOOL_BRANDS: ToolBrand[] = [
     logoUrl: "/integration-icons/apple-notes.png",
     fullBleedLogo: true,
   },
+  {
+    key: "apple-reminders",
+    displayName: "Apple Reminders",
+    domain: "apple.com",
+    aliases: ["apple-reminders", "reminders"],
+    logoUrl: "/integration-icons/apple-reminders.png",
+    fullBleedLogo: true,
+  },
 ];
 
 function normalize(value: string): string {

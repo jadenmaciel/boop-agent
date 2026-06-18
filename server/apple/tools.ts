@@ -7,11 +7,12 @@ import { getAppleSettings } from "../runtime-config.js";
 import { appleBridgeRequest, readBridgeInfo } from "./client.js";
 import { listLocalChats, readLocalMessages } from "./messages-local.js";
 import { readLocalNote, searchLocalNotes } from "./notes-local.js";
+import { listLocalReminders } from "./reminders-local.js";
 
 const NAMESPACE = "apple";
 
 const LOCAL_NOTE =
-  "Read-only data that lives on the user's Mac. iMessage reads run from the local Mac server with Full Disk Access; Apple Notes reads run from the local Mac server with Notes Automation permission; Calendar and Reminders use the optional Apple bridge.";
+  "Read-only data that lives on the user's Mac. iMessage reads run from the local Mac server with Full Disk Access; Apple Notes and Reminders reads run from the local Mac server with Automation permission; Calendar uses the optional Apple bridge.";
 
 const MESSAGE_TEXT_LIMIT = 500;
 
@@ -115,7 +116,9 @@ function formatEvent(event: BridgeEvent): string {
 function formatReminder(reminder: BridgeReminder): string {
   const due = reminder.dueAt ? `due ${reminder.dueAt}` : "no due date";
   const done = reminder.completed ? " — completed" : "";
-  return `[${reminder.list}] ${reminder.title} — ${due}${done}`;
+  const list = redactPhoneNumbers(reminder.list);
+  const title = redactPhoneNumbers(reminder.title);
+  return `[${list}] ${title} — ${due}${done}`;
 }
 
 function formatNoteSummary(note: BridgeNoteSummary): string {
@@ -132,6 +135,10 @@ async function messagesEnabled(): Promise<boolean> {
 
 async function notesEnabled(): Promise<boolean> {
   return (await getAppleSettings()).notesEnabled;
+}
+
+async function remindersEnabled(): Promise<boolean> {
+  return (await getAppleSettings()).remindersEnabled;
 }
 
 async function bridgeAvailable(): Promise<boolean> {
@@ -212,6 +219,33 @@ async function getNote(noteId: string): Promise<BridgeNote> {
     id: noteId,
   });
   return note;
+}
+
+async function listReminders(filters: {
+  list?: string;
+  include_completed?: boolean;
+  due_within_days?: number;
+}): Promise<BridgeReminder[]> {
+  if (process.platform === "darwin") {
+    try {
+      return await listLocalReminders({
+        list: filters.list,
+        includeCompleted: filters.include_completed,
+        dueWithinDays: filters.due_within_days,
+      });
+    } catch (err) {
+      if (!(await bridgeAvailable())) throw err;
+    }
+  }
+  const { reminders } = await appleBridgeRequest<{ reminders: BridgeReminder[] }>(
+    "/reminders/list",
+    {
+      list: filters.list,
+      includeCompleted: filters.include_completed,
+      dueWithinDays: filters.due_within_days,
+    },
+  );
+  return reminders;
 }
 
 export function createAppleTools(namespace = NAMESPACE): RuntimeTool[] {
@@ -311,14 +345,14 @@ export function createAppleTools(namespace = NAMESPACE): RuntimeTool[] {
       },
       async ({ list, include_completed, due_within_days }) =>
         wrap(async () => {
-          const { reminders } = await appleBridgeRequest<{ reminders: BridgeReminder[] }>(
-            "/reminders/list",
-            {
-              list,
-              includeCompleted: include_completed,
-              dueWithinDays: due_within_days,
-            },
-          );
+          if (!(await remindersEnabled())) {
+            return "Apple Reminders reads are disabled in Boop Connections. Turn on Apple Reminders under Local Mac to use this tool.";
+          }
+          const reminders = await listReminders({
+            list,
+            include_completed,
+            due_within_days,
+          });
           if (reminders.length === 0) return "No reminders found.";
           return reminders.map(formatReminder).join("\n");
         }),

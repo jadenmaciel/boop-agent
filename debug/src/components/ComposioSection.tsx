@@ -52,10 +52,11 @@ interface AppleStatus {
   enabled: boolean;
   messagesEnabled: boolean;
   notesEnabled: boolean;
+  remindersEnabled: boolean;
   bridge: AppleBridgeStatus;
 }
 
-type AppleLocalSource = "messages" | "notes";
+type AppleLocalSource = "messages" | "notes" | "reminders";
 
 interface ToolSummary {
   slug: string;
@@ -306,6 +307,7 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
         enabled: false,
         messagesEnabled: false,
         notesEnabled: false,
+        remindersEnabled: false,
         bridge: {
           running: false,
           source: "unavailable",
@@ -331,7 +333,12 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
   const toggleAppleSource = useCallback(
     async (source: AppleLocalSource, enabled: boolean) => {
       setBusy(`apple:${source}`);
-      const label = source === "messages" ? "iMessage" : "Apple Notes";
+      const label =
+        source === "messages"
+          ? "iMessage"
+          : source === "notes"
+            ? "Apple Notes"
+            : "Apple Reminders";
       try {
         const r = await fetch(`/api/apple/${source}/${enabled ? "enable" : "disable"}`, {
           method: "POST",
@@ -368,6 +375,23 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
     }
   }, [showToast]);
 
+  const requestRemindersAccess = useCallback(async () => {
+    setBusy("apple:reminders");
+    try {
+      const r = await fetch("/api/apple/request-reminders-access", { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        showToast(`Apple Reminders access failed: ${err?.error ?? r.statusText}`);
+        return;
+      }
+      setAppleStatus((await r.json()) as AppleStatus);
+    } catch (err) {
+      showToast(`Apple Reminders access failed: ${String(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }, [showToast]);
+
   const openFullDiskAccess = useCallback(async () => {
     setBusy("apple:messages");
     try {
@@ -385,8 +409,9 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
     }
   }, [showToast]);
 
-  const openAutomationSettings = useCallback(async () => {
-    setBusy("apple:notes");
+  const openAutomationSettings = useCallback(async (source: "notes" | "reminders" = "notes") => {
+    const label = source === "notes" ? "Notes" : "Reminders";
+    setBusy(`apple:${source}`);
     try {
       const r = await fetch("/api/apple/open-automation-settings", { method: "POST" });
       if (!r.ok) {
@@ -394,7 +419,7 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
         showToast(`Could not open Automation settings: ${err?.error ?? r.statusText}`);
         return;
       }
-      showToast("Opened Automation settings. Enable Notes for Codex, Terminal, or the app running Boop.", "info");
+      showToast(`Opened Automation settings. Enable ${label} for Codex, Terminal, or the app running Boop.`, "info");
     } catch (err) {
       showToast(`Could not open Automation settings: ${String(err)}`);
     } finally {
@@ -544,6 +569,10 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
     Boolean(appleStatus?.notesEnabled) &&
     Boolean(appleStatus?.bridge.running) &&
     appleStatus?.bridge.permissions?.notes === "granted";
+  const remindersConnected =
+    Boolean(appleStatus?.remindersEnabled) &&
+    Boolean(appleStatus?.bridge.running) &&
+    appleStatus?.bridge.permissions?.reminders === "granted";
   const showLocalAppleConnectors =
     appleLoaded &&
     (appleStatus?.bridge.source === "local-server" ||
@@ -553,7 +582,12 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
     <section className="mx-auto max-w-[1040px] space-y-5 pb-10">
       <SectionHeader
         title="Connections"
-        count={activeCount + (imessageConnected ? 1 : 0) + (notesConnected ? 1 : 0)}
+        count={
+          activeCount +
+          (imessageConnected ? 1 : 0) +
+          (notesConnected ? 1 : 0) +
+          (remindersConnected ? 1 : 0)
+        }
         isDark={isDark}
         hint={data?.enabled === false ? "Set COMPOSIO_API_KEY in .env.local" : undefined}
       />
@@ -587,7 +621,19 @@ export function ComposioSection({ isDark }: { isDark: boolean }) {
             onToggle={(enabled) => toggleAppleSource("notes", enabled)}
             onRefresh={fetchAppleStatus}
             onRequestNotesAccess={requestNotesAccess}
-            onOpenAutomationSettings={openAutomationSettings}
+            onOpenAutomationSettings={() => openAutomationSettings("notes")}
+          />
+          <AppleRemindersConnectionCard
+            status={appleStatus}
+            loaded={appleLoaded}
+            busy={busy === "apple:reminders"}
+            cardBg={cardBg}
+            muted={muted}
+            isDark={isDark}
+            onToggle={(enabled) => toggleAppleSource("reminders", enabled)}
+            onRefresh={fetchAppleStatus}
+            onRequestRemindersAccess={requestRemindersAccess}
+            onOpenAutomationSettings={() => openAutomationSettings("reminders")}
           />
         </SubsectionGrid>
       )}
@@ -1030,6 +1076,174 @@ function AppleNotesConnectionCard({
   );
 }
 
+function AppleRemindersConnectionCard({
+  status,
+  loaded,
+  busy,
+  cardBg,
+  muted,
+  isDark,
+  onToggle,
+  onRefresh,
+  onRequestRemindersAccess,
+  onOpenAutomationSettings,
+}: {
+  status: AppleStatus | null;
+  loaded: boolean;
+  busy: boolean;
+  cardBg: string;
+  muted: string;
+  isDark: boolean;
+  onToggle: (enabled: boolean) => void;
+  onRefresh: () => void;
+  onRequestRemindersAccess: () => void;
+  onOpenAutomationSettings: () => void;
+}) {
+  const enabled = status?.remindersEnabled ?? false;
+  const bridge = status?.bridge ?? null;
+  const permission = bridge?.permissions?.reminders;
+  const state = appleRemindersConnectionState(status, loaded);
+  const buttonLabel = busy ? "Working..." : enabled ? "Disconnect" : "Connect";
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3.5 shadow-sm fade-in ${cardBg}`}>
+      <div className="flex items-center gap-4">
+        <IntegrationLogo raw="apple-reminders" size={32} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-medium ${isDark ? "text-zinc-100" : "text-zinc-900"}`}>
+              Apple Reminders
+            </span>
+            <span className={`text-xs mono ${muted}`}>apple.reminders.read</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                isDark ? "bg-zinc-100/10 text-zinc-300" : "bg-zinc-100 text-zinc-700"
+              }`}
+            >
+              Mac only
+            </span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                isDark ? "bg-emerald-400/10 text-emerald-300" : "bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              Read-only
+            </span>
+          </div>
+          <p className={`text-xs ${muted} leading-snug mt-0.5 line-clamp-2`}>
+            Lists local Apple Reminders from this Mac. Requires macOS Automation permission for Reminders.
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 text-xs ${state.textClass}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${state.dotClass}`} />
+              {state.label}
+            </span>
+            {bridge?.version && (
+              <span className={`text-[10px] mono ${muted}`}>
+                {bridge.source === "local-server" ? `server ${bridge.version}` : `bridge v${bridge.version}`}
+              </span>
+            )}
+            {permission && permission !== "granted" && (
+              <span className={`text-[10px] mono ${muted}`}>reminders={permission}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={onRefresh}
+            disabled={busy}
+            className={`rounded-xl border px-2.5 py-1.5 text-xs transition-colors ${
+              isDark
+                ? "border-white/10 text-zinc-300 hover:bg-white/5"
+                : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+            } disabled:opacity-50`}
+          >
+            Refresh
+          </button>
+          <button
+            onClick={() => onToggle(!enabled)}
+            disabled={busy || !loaded}
+            className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-colors ${
+              busy || !loaded
+                ? isDark
+                  ? "bg-zinc-700 text-zinc-400"
+                  : "bg-zinc-200 text-zinc-500"
+                : enabled
+                  ? isDark
+                    ? "border border-white/10 text-zinc-300 hover:bg-white/5"
+                    : "border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                  : isDark
+                    ? "bg-zinc-100 text-zinc-950 hover:bg-white"
+                    : "bg-zinc-950 text-white hover:bg-zinc-800"
+            }`}
+          >
+            {buttonLabel}
+          </button>
+        </div>
+      </div>
+
+      {enabled && !bridge?.running && (
+        <div
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
+            isDark
+              ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+        >
+          Apple Reminders reads only work on macOS. Run Boop on the Mac whose Reminders you want to read.
+          {bridge?.error && <span className="block mt-1 mono text-[11px] opacity-80">{bridge.error}</span>}
+        </div>
+      )}
+
+      {enabled && bridge?.running && permission !== "granted" && (
+        <div
+          className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
+            permission === "denied"
+              ? isDark
+                ? "border-rose-500/20 bg-rose-500/5 text-rose-200"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+              : isDark
+                ? "border-amber-500/20 bg-amber-500/5 text-amber-200"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Allow the app running Boop to control Reminders. Boop only exposes read-only reminder tools.
+            </span>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onRequestRemindersAccess}
+                disabled={busy}
+                className={`rounded-xl px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  isDark
+                    ? "bg-zinc-100 text-zinc-950 hover:bg-white disabled:opacity-50"
+                    : "bg-zinc-950 text-white hover:bg-zinc-800 disabled:opacity-50"
+                }`}
+              >
+                Enable Reminders
+              </button>
+              <button
+                type="button"
+                onClick={onOpenAutomationSettings}
+                disabled={busy}
+                className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  isDark
+                    ? "border-white/10 text-zinc-300 hover:bg-white/5 disabled:opacity-50"
+                    : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
+                }`}
+              >
+                Automation Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function imessageConnectionState(status: AppleStatus | null, loaded: boolean): {
   label: string;
   dotClass: string;
@@ -1071,6 +1285,29 @@ function appleNotesConnectionState(status: AppleStatus | null, loaded: boolean):
     return { label: "Connected", dotClass: "bg-emerald-400", textClass: "text-emerald-500" };
   }
   if (status.bridge.permissions?.notes === "denied") {
+    return { label: "Needs Automation", dotClass: "bg-rose-400", textClass: "text-rose-500" };
+  }
+  return { label: "Permission pending", dotClass: "bg-amber-400", textClass: "text-amber-500" };
+}
+
+function appleRemindersConnectionState(status: AppleStatus | null, loaded: boolean): {
+  label: string;
+  dotClass: string;
+  textClass: string;
+} {
+  if (!loaded) {
+    return { label: "Checking", dotClass: "bg-zinc-400", textClass: "text-zinc-500" };
+  }
+  if (!status?.remindersEnabled) {
+    return { label: "Not connected", dotClass: "bg-zinc-500", textClass: "text-zinc-500" };
+  }
+  if (!status.bridge.running) {
+    return { label: "Local Mac unavailable", dotClass: "bg-amber-400", textClass: "text-amber-500" };
+  }
+  if (status.bridge.permissions?.reminders === "granted") {
+    return { label: "Connected", dotClass: "bg-emerald-400", textClass: "text-emerald-500" };
+  }
+  if (status.bridge.permissions?.reminders === "denied") {
     return { label: "Needs Automation", dotClass: "bg-rose-400", textClass: "text-rose-500" };
   }
   return { label: "Permission pending", dotClass: "bg-amber-400", textClass: "text-amber-500" };

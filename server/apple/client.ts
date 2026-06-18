@@ -7,14 +7,15 @@ import {
   probeLocalMessagesAccess,
 } from "./messages-local.js";
 import { getCachedLocalNotesAccess } from "./notes-local.js";
+import { getCachedLocalRemindersAccess } from "./reminders-local.js";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export const BRIDGE_UNREACHABLE_MESSAGE =
-  "The Apple bridge isn't running. iMessage and Apple Notes can still work from the local Mac server; Calendar and Reminders require the optional bridge.";
+  "The Apple bridge isn't running. iMessage, Apple Notes, and Apple Reminders can still work from the local Mac server; Calendar requires the optional bridge.";
 
 const BRIDGE_TIMEOUT_MESSAGE =
-  "The Apple bridge didn't respond in time. Calendar and Reminders require the optional bridge to be running on this Mac.";
+  "The Apple bridge didn't respond in time. Calendar requires the optional bridge to be running on this Mac.";
 
 export interface AppleBridgeInfo {
   port: number;
@@ -130,6 +131,7 @@ async function localServerStatus(): Promise<AppleBridgeStatus> {
   }
   const messages = await probeLocalMessagesAccess();
   const notes = getCachedLocalNotesAccess();
+  const reminders = getCachedLocalRemindersAccess();
   return {
     running: true,
     source: "local-server",
@@ -138,7 +140,7 @@ async function localServerStatus(): Promise<AppleBridgeStatus> {
     permissions: {
       messages,
       calendars: "notDetermined",
-      reminders: "notDetermined",
+      reminders,
       notes,
     },
     error: messages === "granted" ? null : LOCAL_MESSAGES_FULL_DISK_ACCESS_MESSAGE,
