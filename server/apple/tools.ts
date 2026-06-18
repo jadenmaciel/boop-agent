@@ -5,11 +5,12 @@ import { runtimeText, type RuntimeTool } from "../runtimes/types.js";
 import { redactContactHandle, redactPhoneNumbers } from "../privacy.js";
 import { appleBridgeRequest, readBridgeInfo } from "./client.js";
 import { listLocalChats, readLocalMessages } from "./messages-local.js";
+import { readLocalNote, searchLocalNotes } from "./notes-local.js";
 
 const NAMESPACE = "apple";
 
 const LOCAL_NOTE =
-  "Read-only data that lives on the user's Mac. iMessage reads can run from the local Mac server with Full Disk Access; Calendar, Reminders, and Notes use the optional Apple bridge.";
+  "Read-only data that lives on the user's Mac. iMessage reads run from the local Mac server with Full Disk Access; Apple Notes reads run from the local Mac server with Notes Automation permission; Calendar and Reminders use the optional Apple bridge.";
 
 const MESSAGE_TEXT_LIMIT = 500;
 
@@ -118,7 +119,10 @@ function formatReminder(reminder: BridgeReminder): string {
 
 function formatNoteSummary(note: BridgeNoteSummary): string {
   const modified = note.modifiedAt ? ` — modified ${note.modifiedAt}` : "";
-  return `${note.name} (${note.id}) — folder ${note.folder}${modified}\n  ${note.snippet}`;
+  const name = redactPhoneNumbers(note.name);
+  const folder = redactPhoneNumbers(note.folder);
+  const snippet = redactPhoneNumbers(note.snippet);
+  return `${name} (${note.id}) — folder ${folder}${modified}\n  ${snippet}`;
 }
 
 async function bridgeAvailable(): Promise<boolean> {
@@ -170,6 +174,35 @@ async function listMessages(filters: {
     },
   );
   return messages;
+}
+
+async function listNotes(filters: { query: string; limit?: number }): Promise<BridgeNoteSummary[]> {
+  if (process.platform === "darwin") {
+    try {
+      return await searchLocalNotes(filters.query, filters.limit);
+    } catch (err) {
+      if (!(await bridgeAvailable())) throw err;
+    }
+  }
+  const { notes } = await appleBridgeRequest<{ notes: BridgeNoteSummary[] }>(
+    "/notes/search",
+    { query: filters.query, limit: filters.limit },
+  );
+  return notes;
+}
+
+async function getNote(noteId: string): Promise<BridgeNote> {
+  if (process.platform === "darwin") {
+    try {
+      return await readLocalNote(noteId);
+    } catch (err) {
+      if (!(await bridgeAvailable())) throw err;
+    }
+  }
+  const { note } = await appleBridgeRequest<{ note: BridgeNote }>("/notes/get", {
+    id: noteId,
+  });
+  return note;
 }
 
 export function createAppleTools(namespace = NAMESPACE): RuntimeTool[] {
@@ -285,10 +318,7 @@ export function createAppleTools(namespace = NAMESPACE): RuntimeTool[] {
       },
       async ({ query, limit }) =>
         wrap(async () => {
-          const { notes } = await appleBridgeRequest<{ notes: BridgeNoteSummary[] }>(
-            "/notes/search",
-            { query, limit },
-          );
+          const notes = await listNotes({ query, limit });
           if (notes.length === 0) return "No notes found.";
           return notes.map(formatNoteSummary).join("\n");
         }),
@@ -302,10 +332,8 @@ export function createAppleTools(namespace = NAMESPACE): RuntimeTool[] {
       },
       async ({ note_id }) =>
         wrap(async () => {
-          const { note } = await appleBridgeRequest<{ note: BridgeNote }>("/notes/get", {
-            id: note_id,
-          });
-          return `${note.name} (folder ${note.folder})\n\n${note.body}`;
+          const note = await getNote(note_id);
+          return `${redactPhoneNumbers(note.name)} (folder ${redactPhoneNumbers(note.folder)})\n\n${redactPhoneNumbers(note.body)}`;
         }),
     ),
   ];

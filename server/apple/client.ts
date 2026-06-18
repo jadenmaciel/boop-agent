@@ -10,10 +10,10 @@ import {
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export const BRIDGE_UNREACHABLE_MESSAGE =
-  "The Apple bridge isn't running. iMessage can still work from the local Mac server; Calendar, Reminders, and Notes require the optional bridge.";
+  "The Apple bridge isn't running. iMessage and Apple Notes can still work from the local Mac server; Calendar and Reminders require the optional bridge.";
 
 const BRIDGE_TIMEOUT_MESSAGE =
-  "The Apple bridge didn't respond in time. Calendar, Reminders, and Notes require the optional bridge to be running on this Mac.";
+  "The Apple bridge didn't respond in time. Calendar and Reminders require the optional bridge to be running on this Mac.";
 
 export interface AppleBridgeInfo {
   port: number;

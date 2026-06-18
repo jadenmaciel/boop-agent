@@ -6,7 +6,7 @@ export function registerAppleIntegration(): void {
   registerIntegration({
     name: "apple",
     description:
-      "Read-only Apple data from the user's Mac: iMessage history via the local server, plus Apple Calendar events, Apple Reminders, and Apple Notes via the optional Apple bridge.",
+      "Read-only Apple data from the user's Mac: iMessage history and Apple Notes via the local server, plus Apple Calendar events and Apple Reminders via the optional Apple bridge.",
     isEnabled: async () => (await getAppleSettings()).enabled,
     createServer: async () => createAppleMcp(),
     createTools: async () => createAppleTools(),

@@ -111,8 +111,8 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
           <div className="min-w-0">
             <div className={`text-sm font-medium ${label}`}>Apple data (local Mac)</div>
             <div className={`text-xs mt-1 leading-relaxed max-w-3xl ${muted}`}>
-              iMessage reads can run from the local server with Full Disk Access. Calendar,
-              Reminders, and Notes use the optional Apple bridge.
+              iMessage uses Full Disk Access. Notes uses macOS Automation permission.
+              Calendar and Reminders use the optional Apple bridge.
             </div>
             <div className={`text-[10px] mono mt-2 ${subtle}`}>
               {storedEnabled === undefined
@@ -172,7 +172,7 @@ export function AppleSection({ isDark }: { isDark: boolean }) {
           </div>
         ) : (
           <div className={subtlePanelClass(isDark, "px-3 py-3 text-xs leading-relaxed text-zinc-500")}>
-            iMessage reads only work on macOS. Calendar, Reminders, and Notes require the optional Apple bridge.
+            Apple data reads only work on macOS. Calendar and Reminders require the optional Apple bridge.
             {bridge?.error && (
               <span className={`block mt-1.5 mono text-[11px] ${isDark ? "text-rose-300" : "text-rose-600"}`}>
                 {bridge.error}

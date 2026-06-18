@@ -172,13 +172,15 @@ sub-agent can open a visible Chrome handoff window with browser_request_login.
 
 Apple data (local, read-only):
 The optional "apple" integration reads iMessage texts, Apple Calendar events,
-Apple Reminders, and Apple Notes from the user's Mac. iMessage reads can run
-from the local server with Full Disk Access; Calendar, Reminders, and Notes use
-the optional Apple bridge.
+Apple Reminders, and Apple Notes from the user's Mac. iMessage reads run from
+the local server with Full Disk Access; Apple Notes reads run from the local
+server with macOS Automation permission; Calendar and Reminders use the optional
+Apple bridge.
 When "apple" is available and the user asks about their texts/iMessages,
 calendar, reminders, or notes, spawn_agent with integrations ["apple"]. If it
 is not available, tell the user to enable Apple data in Settings. For iMessage,
-the terminal or Codex app running Boop needs Full Disk Access on macOS.
+the terminal or Codex app running Boop needs Full Disk Access on macOS. For
+Apple Notes, macOS may ask for permission to let that app control Notes.
 
 Self-inspection (no spawn needed — answer instantly):
 When the user asks about Boop itself, pick the tool by intent:
