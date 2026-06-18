@@ -71,6 +71,8 @@ export async function sendImessage(toNumber: string, text: string): Promise<void
     );
     return;
   }
+  // Intentional privacy guard: Boop should not deliver phone numbers back over
+  // iMessage, even if an agent includes one in its final reply.
   const plain = redactPhoneNumbers(stripMarkdown(text));
   for (const part of chunk(plain)) {
     const res = await fetch(`${API_BASE}/send-message`, {
