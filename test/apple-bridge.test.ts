@@ -184,6 +184,40 @@ describe("apple bridge client and tools", () => {
     expect(result.text).toBe("No chats found.");
   });
 
+  it("redacts phone numbers from calendar event output", async () => {
+    writeBridgeInfo();
+    const phone = ["+", "1", "555", "555", "0100"].join("");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse(200, {
+          events: [
+            {
+              id: "event-1",
+              calendar: `Work ${phone}`,
+              title: `Call ${phone}`,
+              startsAt: "2026-06-12T17:00:00Z",
+              endsAt: "2026-06-12T17:30:00Z",
+              allDay: false,
+              location: `Dial ${phone}`,
+              notes: null,
+              status: "confirmed",
+            },
+          ],
+        }),
+      ),
+    );
+
+    const tool = createAppleTools().find((t) => t.name === "apple_calendar_events");
+    expect(tool).toBeDefined();
+    const result = await tool!.handle({});
+
+    expect(result.success).toBe(true);
+    expect(result.text).toBe(
+      "[Work [phone number hidden]] Call [phone number hidden] — 2026-06-12T17:00:00Z → 2026-06-12T17:30:00Z @ Dial [phone number hidden]",
+    );
+  });
+
   it("does not enable sources from the global Apple toggle alone", async () => {
     delete process.env.BOOP_APPLE_MESSAGES_ENABLED;
     delete process.env.BOOP_APPLE_NOTES_ENABLED;

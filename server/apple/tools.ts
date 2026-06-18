@@ -111,8 +111,10 @@ function formatEvent(event: BridgeEvent): string {
   const when = event.allDay
     ? `${event.startsAt} → ${event.endsAt} (all day)`
     : `${event.startsAt} → ${event.endsAt}`;
-  const location = event.location ? ` @ ${event.location}` : "";
-  return `[${event.calendar}] ${event.title} — ${when}${location}`;
+  const calendar = redactPhoneNumbers(event.calendar);
+  const title = redactPhoneNumbers(event.title);
+  const location = event.location ? ` @ ${redactPhoneNumbers(event.location)}` : "";
+  return `[${calendar}] ${title} — ${when}${location}`;
 }
 
 function formatReminder(reminder: BridgeReminder): string {
