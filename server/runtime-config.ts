@@ -341,17 +341,17 @@ export async function getAppleSettings(): Promise<AppleSettings> {
       settingBool(
         messagesEnabled,
         process.env.BOOP_APPLE_MESSAGES_ENABLED,
-        appleEnabled,
+        false,
       ),
     notesEnabled:
       appleEnabled &&
-      settingBool(notesEnabled, process.env.BOOP_APPLE_NOTES_ENABLED, appleEnabled),
+      settingBool(notesEnabled, process.env.BOOP_APPLE_NOTES_ENABLED, false),
     remindersEnabled:
       appleEnabled &&
       settingBool(
         remindersEnabled,
         process.env.BOOP_APPLE_REMINDERS_ENABLED,
-        appleEnabled,
+        false,
       ),
   };
 

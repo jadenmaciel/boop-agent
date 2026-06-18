@@ -8,12 +8,17 @@ import {
   readBridgeInfo,
 } from "../server/apple/client.js";
 import { createAppleTools } from "../server/apple/tools.js";
-import { clearAppleSettingsCache } from "../server/runtime-config.js";
+import {
+  clearAppleSettingsCache,
+  getAppleSettings,
+} from "../server/runtime-config.js";
 
 const tempHome = mkdtempSync(join(tmpdir(), "boop-apple-bridge-test-"));
 const originalHome = process.env.HOME;
 const originalAppleEnabled = process.env.BOOP_APPLE_ENABLED;
 const originalAppleMessagesEnabled = process.env.BOOP_APPLE_MESSAGES_ENABLED;
+const originalAppleNotesEnabled = process.env.BOOP_APPLE_NOTES_ENABLED;
+const originalAppleRemindersEnabled = process.env.BOOP_APPLE_REMINDERS_ENABLED;
 
 const BRIDGE_INFO = {
   port: 4570,
@@ -43,6 +48,8 @@ describe("apple bridge client and tools", () => {
     process.env.HOME = tempHome;
     process.env.BOOP_APPLE_ENABLED = "true";
     process.env.BOOP_APPLE_MESSAGES_ENABLED = "true";
+    delete process.env.BOOP_APPLE_NOTES_ENABLED;
+    delete process.env.BOOP_APPLE_REMINDERS_ENABLED;
     clearAppleSettingsCache();
   });
 
@@ -64,6 +71,16 @@ describe("apple bridge client and tools", () => {
       delete process.env.BOOP_APPLE_MESSAGES_ENABLED;
     } else {
       process.env.BOOP_APPLE_MESSAGES_ENABLED = originalAppleMessagesEnabled;
+    }
+    if (originalAppleNotesEnabled === undefined) {
+      delete process.env.BOOP_APPLE_NOTES_ENABLED;
+    } else {
+      process.env.BOOP_APPLE_NOTES_ENABLED = originalAppleNotesEnabled;
+    }
+    if (originalAppleRemindersEnabled === undefined) {
+      delete process.env.BOOP_APPLE_REMINDERS_ENABLED;
+    } else {
+      process.env.BOOP_APPLE_REMINDERS_ENABLED = originalAppleRemindersEnabled;
     }
   });
 
@@ -165,5 +182,24 @@ describe("apple bridge client and tools", () => {
 
     expect(result.success).toBe(true);
     expect(result.text).toBe("No chats found.");
+  });
+
+  it("does not enable sources from the global Apple toggle alone", async () => {
+    delete process.env.BOOP_APPLE_MESSAGES_ENABLED;
+    delete process.env.BOOP_APPLE_NOTES_ENABLED;
+    delete process.env.BOOP_APPLE_REMINDERS_ENABLED;
+    clearAppleSettingsCache();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(getAppleSettings()).resolves.toEqual({
+        enabled: true,
+        messagesEnabled: false,
+        notesEnabled: false,
+        remindersEnabled: false,
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
