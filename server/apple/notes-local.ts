@@ -7,7 +7,6 @@ const OSASCRIPT_BIN = "/usr/bin/osascript";
 const NOTES_TIMEOUT_MS = 15_000;
 const NOTES_MAX_BUFFER = 5 * 1024 * 1024;
 const NOTE_BODY_LIMIT = 40_000;
-const NOTES_ACCESS_PROBE_QUERY = "__boop_notes_access_probe__";
 
 export const LOCAL_NOTES_UNSUPPORTED_MESSAGE =
   "Local Apple Notes reads are only available on macOS.";
@@ -61,6 +60,10 @@ function capLimit(input: number | undefined, fallback: number): number {
 }
 
 function normalizeNotesError(err: unknown): Error {
+  const signal = typeof (err as { signal?: unknown })?.signal === "string"
+    ? (err as { signal: string }).signal
+    : "";
+  const killed = Boolean((err as { killed?: unknown })?.killed);
   const stderr = typeof (err as { stderr?: unknown })?.stderr === "string"
     ? ((err as { stderr: string }).stderr.trim())
     : "";
@@ -76,8 +79,8 @@ function normalizeNotesError(err: unknown): Error {
   ) {
     return new Error(LOCAL_NOTES_ACCESS_MESSAGE);
   }
-  if (text.includes("timed out") || text.includes("SIGTERM")) {
-    return new Error(`${LOCAL_NOTES_ACCESS_MESSAGE} Notes did not respond before the read timeout.`);
+  if (killed || signal === "SIGTERM" || text.includes("timed out") || text.includes("SIGTERM")) {
+    return new Error("Apple Notes was too slow to return data before the read timeout. Try again with a smaller limit.");
   }
   if (text.includes("Apple Note was not found")) {
     return new Error("Apple Note was not found.");
@@ -86,6 +89,11 @@ function normalizeNotesError(err: unknown): Error {
     return new Error("Local Apple Notes read failed: AppleScript syntax error.");
   }
   return new Error(`Local Apple Notes read failed: ${text}`);
+}
+
+function isPermissionError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes(LOCAL_NOTES_ACCESS_MESSAGE);
 }
 
 async function runNotesScript<T>(script: string, env: Record<string, string>): Promise<T> {
@@ -145,9 +153,10 @@ export async function requestLocalNotesAccess(): Promise<LocalNotesPermission> {
     return cachedNotesPermission;
   }
   try {
-    await searchLocalNotes(NOTES_ACCESS_PROBE_QUERY, 1);
+    await runNotesScript<{ ok: boolean }>(REQUEST_NOTES_ACCESS_SCRIPT, {});
     cachedNotesPermission = "granted";
-  } catch {
+  } catch (err) {
+    if (!isPermissionError(err)) throw err;
     cachedNotesPermission = "denied";
   }
   return cachedNotesPermission;
@@ -230,6 +239,13 @@ on noteSnippet(bodyText)
   end if
   return cleanText
 end noteSnippet
+`;
+
+const REQUEST_NOTES_ACCESS_SCRIPT = String.raw`
+tell application "Notes"
+  set noteCount to count of notes
+end tell
+return "{\"ok\":true}"
 `;
 
 const SEARCH_NOTES_SCRIPT = `${APPLESCRIPT_HELPERS}
