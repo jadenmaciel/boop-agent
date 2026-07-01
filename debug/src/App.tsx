@@ -223,7 +223,7 @@ export function App() {
         : storedClaudeModel
       : undefined) ??
     (runtimeConfig === undefined ? "Checking..." : "Model unavailable");
-  const inDesktopShell = desktopStatus !== null || window.parent !== window;
+  const inDesktopShell = desktopStatus !== null;
   const demoModeEnabled = demoStatus?.enabled ?? false;
   const displayDesktopStatus =
     desktopStatus && demoModeEnabled

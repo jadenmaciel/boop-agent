@@ -35,6 +35,7 @@ let quitting = false;
 let intentionalStop = false;
 let starting = false;
 let runtimeRoot = "";
+let cachedConnectionStatus = null;
 
 const status = {
   state: "stopped",
@@ -234,7 +235,7 @@ function readRuntimeEnv() {
   return env;
 }
 
-function safeConnectionStatus() {
+function readConnectionStatus() {
   const env = readRuntimeEnv();
   return {
     convexUrl: env.CONVEX_URL || env.VITE_CONVEX_URL || "",
@@ -242,12 +243,21 @@ function safeConnectionStatus() {
   };
 }
 
+function refreshConnectionStatus() {
+  cachedConnectionStatus = readConnectionStatus();
+  return cachedConnectionStatus;
+}
+
+function connectionStatus() {
+  return cachedConnectionStatus || refreshConnectionStatus();
+}
+
 function plainStatus(value) {
   return value.charAt(0).toUpperCase() + value.slice(1).replace(/-/g, " ");
 }
 
 function setStatus(partial) {
-  Object.assign(status, safeConnectionStatus(), partial, { runtimeRoot });
+  Object.assign(status, connectionStatus(), partial, { runtimeRoot });
   const ready =
     status.server === "running" &&
     status.convex === "running" &&
@@ -621,6 +631,7 @@ async function ensureConvexGenerated() {
 function resetServiceStatuses(state) {
   clearTimeout(webhookCheckTimer);
   webhookCheckSequence += 1;
+  refreshConnectionStatus();
   setStatus({
     state,
     server: state === "stopped" ? "stopped" : "starting",
@@ -756,7 +767,7 @@ ipcMain.handle("boop:show-runtime-folder", () => shell.openPath(runtimeRoot));
 
 app.whenReady().then(() => {
   runtimeRoot = getRuntimeRoot();
-  Object.assign(status, safeConnectionStatus(), { runtimeRoot });
+  Object.assign(status, refreshConnectionStatus(), { runtimeRoot });
   if (isMac && app.dock) app.dock.setIcon(createIcon(256));
 
   createWindow();
