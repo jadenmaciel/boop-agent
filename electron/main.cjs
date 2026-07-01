@@ -579,13 +579,13 @@ function ingestLine(line) {
   if (checkWebhookForPublicUrl) scheduleWebhookCheck(checkWebhookForPublicUrl);
 }
 
-function pipeOutput(stream) {
+function pipeOutput(stream, shouldIngest = () => true) {
   let buffer = "";
   stream.on("data", (chunk) => {
     buffer += chunk.toString();
     let index;
     while ((index = buffer.indexOf("\n")) !== -1) {
-      ingestLine(buffer.slice(0, index));
+      if (shouldIngest()) ingestLine(buffer.slice(0, index));
       buffer = buffer.slice(index + 1);
     }
   });
@@ -680,16 +680,19 @@ async function startBoop() {
     env: childEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = boopProcess;
   starting = false;
 
-  pipeOutput(boopProcess.stdout);
-  pipeOutput(boopProcess.stderr);
-  boopProcess.on("error", (error) => {
+  pipeOutput(child.stdout, () => boopProcess === child);
+  pipeOutput(child.stderr, () => boopProcess === child);
+  child.on("error", (error) => {
+    if (boopProcess !== child) return;
     starting = false;
     boopProcess = undefined;
     setStatus({ state: "error", lastMessage: error.message });
   });
-  boopProcess.on("exit", (code) => {
+  child.on("exit", (code) => {
+    if (boopProcess !== child) return;
     starting = false;
     boopProcess = undefined;
     if (quitting || intentionalStop || status.state === "stopped") return;
