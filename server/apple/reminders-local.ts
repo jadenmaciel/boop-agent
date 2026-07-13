@@ -13,7 +13,7 @@ export const LOCAL_REMINDERS_UNSUPPORTED_MESSAGE =
   "Local Apple Reminders reads are only available on macOS.";
 
 export const LOCAL_REMINDERS_ACCESS_MESSAGE =
-  "Boop needs macOS Automation permission to read Apple Reminders. When prompted, allow Boop to control Reminders, or open System Settings -> Privacy & Security -> Automation and enable Reminders for Boop. Access is read-only.";
+  "Boop needs macOS Automation permission to read Apple Reminders. When prompted, allow Boop or the terminal app running npm run dev to control Reminders. You can also enable it in System Settings -> Privacy & Security -> Automation. Access is read-only.";
 
 export type LocalRemindersPermission = "granted" | "denied" | "notDetermined";
 

@@ -127,7 +127,7 @@ export function App() {
   const counts = useQuery(api.memoryRecords.countsByTier, {}) as
     | MemoryTierCounts
     | undefined;
-  const agents = useQuery(api.agents.list, {}) as AgentSummary[] | undefined;
+  const agents = useQuery(api.agents.listForDashboard, {}) as AgentSummary[] | undefined;
   const demoStatus = useQuery(api.demo.status);
   const storedRuntime = useQuery(api.settings.get, { key: "runtime" }) as
     | string
@@ -191,6 +191,7 @@ export function App() {
 
   useEffect(() => {
     function onDesktopStatus(event: MessageEvent) {
+      if (event.source !== window.parent) return;
       const data = event.data;
       if (!data || data.type !== "boop-desktop-status") return;
       setDesktopStatus(data.status as DesktopStatus);
@@ -207,9 +208,10 @@ export function App() {
 
   const isDark = theme === "dark";
   const currentView = NAV.find((item) => item.id === view)?.label ?? "Dashboard";
+  const demoModeEnabled = demoStatus?.enabled ?? false;
   const storedProvider: RuntimeProvider | null =
     storedRuntime === "claude" || storedRuntime === "codex" ? storedRuntime : null;
-  const activeRuntime = runtimeConfig?.runtime ?? storedProvider;
+  const activeRuntime = runtimeConfig?.runtime ?? storedProvider ?? (demoModeEnabled ? "codex" : null);
   const providerLabel = activeRuntime
     ? activeRuntime === "codex"
       ? "Codex"
@@ -222,13 +224,14 @@ export function App() {
         ? storedHostedModel
         : storedClaudeModel
       : undefined) ??
+    (demoModeEnabled ? "gpt-5.5" : undefined) ??
     (runtimeConfig === undefined ? "Checking..." : "Model unavailable");
   const inDesktopShell = desktopStatus !== null;
-  const demoModeEnabled = demoStatus?.enabled ?? false;
   const displayDesktopStatus =
     desktopStatus && demoModeEnabled
       ? { ...desktopStatus, phoneNumber: DEMO_PHONE_NUMBER }
       : desktopStatus;
+  const displayConnected = demoModeEnabled ? true : connected;
 
   return (
     <div
@@ -242,7 +245,7 @@ export function App() {
         }`}
       >
         <ConnectionHeader
-          connected={connected}
+          connected={displayConnected}
           desktopStatus={displayDesktopStatus}
           isDark={isDark}
           onAction={sendDesktopAction}
@@ -254,7 +257,7 @@ export function App() {
               key={item.id}
               data-active={view === item.id}
               onClick={() => setView(item.id)}
-              className={`sidebar-nav-item flex h-8 w-full items-center gap-2 rounded-2xl px-2.5 text-left text-[12px] ${
+              className={`desktop-no-drag sidebar-nav-item flex h-8 w-full items-center gap-2 rounded-2xl px-2.5 text-left text-[12px] ${
                 view === item.id
                   ? isDark
                     ? "text-zinc-50"
@@ -306,7 +309,7 @@ export function App() {
               <button
                 onClick={() => setChangelogOpen(true)}
                 aria-label="Open changelog"
-                className={`rounded-lg px-1.5 py-1 text-[11px] mono transition-colors ${
+                className={`desktop-no-drag rounded-lg px-1.5 py-1 text-[11px] mono transition-colors ${
                   isDark
                     ? "text-zinc-600 hover:bg-white/5 hover:text-zinc-300"
                     : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
@@ -318,7 +321,7 @@ export function App() {
             </div>
             <button
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className={`p-1.5 rounded-xl transition-colors ${
+              className={`desktop-no-drag p-1.5 rounded-xl transition-colors ${
                 isDark
                   ? "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
                   : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
@@ -383,7 +386,9 @@ export function App() {
             {view === "dashboard" && <DashboardPanel isDark={isDark} />}
             {view === "agents" && <AgentsPanel isDark={isDark} />}
             {view === "automations" && <AutomationsPanel isDark={isDark} />}
-            {view === "memory" && <MemoryPanel isDark={isDark} />}
+            {view === "memory" && (
+              <MemoryPanel isDark={isDark} demoMode={demoModeEnabled} />
+            )}
             {view === "events" && <EventsPanel isDark={isDark} />}
             {view === "consolidation" && <ConsolidationPanel isDark={isDark} />}
             {view === "connections" && <ConnectionsPanel isDark={isDark} />}
@@ -496,7 +501,7 @@ function ConnectionHeader({
         type="button"
         aria-expanded={open}
         onClick={() => setExpanded((value) => !value)}
-        className={`flex w-full items-center gap-3 rounded-2xl px-1.5 py-1 text-left ${
+        className={`desktop-no-drag flex w-full items-center gap-3 rounded-2xl px-1.5 py-1 text-left ${
           isDark ? "hover:bg-white/5" : "hover:bg-white/70"
         }`}
       >
@@ -527,7 +532,7 @@ function ConnectionHeader({
 
       {open && (
         <div
-          className={`pop-in absolute left-0 right-0 top-full mt-2 rounded-2xl border p-2.5 shadow-2xl ${
+          className={`desktop-no-drag pop-in absolute left-0 right-0 top-full mt-2 rounded-2xl border p-2.5 shadow-2xl ${
             isDark
               ? "border-white/10 bg-[#18181b] shadow-black/50"
               : "border-zinc-200 bg-white shadow-zinc-300/70"

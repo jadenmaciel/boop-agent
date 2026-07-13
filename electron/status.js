@@ -12,15 +12,26 @@ const fields = {
 let lastStatus = null;
 
 function normalizeUrl(value) {
-  return value ? value.replace(/\/$/, "") : "";
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const local =
+      hostname === "localhost" ||
+      hostname === "::1" ||
+      hostname.startsWith("127.");
+    return url.protocol === "http:" && local ? value.replace(/\/$/, "") : "";
+  } catch {
+    return "";
+  }
 }
 
 function dashboardOrigin() {
   try {
     const url = fields.dashboardFrame.dataset.url || lastStatus?.dashboardUrl || "";
-    return url ? new URL(url).origin : "*";
+    return normalizeUrl(url) ? new URL(url).origin : "";
   } catch {
-    return "*";
+    return "";
   }
 }
 
@@ -45,12 +56,14 @@ function dashboardStatus(status) {
 
 function postStatusToDashboard(status = lastStatus) {
   if (!status || !fields.dashboardFrame.contentWindow) return;
+  const targetOrigin = dashboardOrigin();
+  if (!targetOrigin) return;
   fields.dashboardFrame.contentWindow.postMessage(
     {
       type: "boop-desktop-status",
       status: dashboardStatus(status),
     },
-    dashboardOrigin(),
+    targetOrigin,
   );
 }
 
@@ -235,6 +248,7 @@ fields.dashboardFrame.addEventListener("load", () => postStatusToDashboard());
 
 window.addEventListener("message", (event) => {
   if (event.source !== fields.dashboardFrame.contentWindow) return;
+  if (!dashboardOrigin() || event.origin !== dashboardOrigin()) return;
   const data = event.data || {};
   if (data.type === "boop-desktop-status-request") {
     postStatusToDashboard();

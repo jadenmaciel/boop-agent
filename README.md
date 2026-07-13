@@ -42,12 +42,12 @@ Built on:
 
 ## What you get
 
-- **iMessage in / iMessage out** via Sendblue (with typing indicators and webhook dedup).
+- **iMessage in / iMessage out** via Sendblue (with signed inbound requests, typing indicators, and webhook dedup).
 - **Sendblue CLI integration** — `npm run dev` auto-registers the inbound webhook for you every restart (no re-pasting into the dashboard when free ngrok rotates your URL).
 - **Dispatcher + workers** pattern: a lean interaction agent decides what to do, spawns focused sub-agents that actually do the work.
 - **Pure dispatcher** — the interaction agent has only memory + spawn + automation + draft tools. Web access, files, and integrations are explicitly denied to it; sub-agents get `WebSearch` / `WebFetch` / the integrations.
 - **Tiered memory** (short / long / permanent) with post-turn extraction, decay, and cleaning.
-- **Vector search** for recall when you add an embeddings key (Voyage or OpenAI) — falls back to substring.
+- **Vector search** for recall with a local BGE-large fallback, or optional Voyage/OpenAI embeddings.
 - **Memory consolidation** — a daily 3-phase adversarial pipeline (proposer → adversary → judge) that merges duplicates, resolves contradictions, and prunes noise. Uses the configured runtime, with provider-specific model defaults. Runs every 24h by default, also triggerable manually via `POST /consolidate`.
 - **Automations** — the agent can schedule recurring work from a text ("every morning at 8 summarize my calendar") and push results back to iMessage.
 - **Draft-and-send** — any external action stages a draft first; the agent only commits when the user confirms.
@@ -169,7 +169,7 @@ Public URL:        https://<abc123>.ngrok.app
 Sendblue webhook:  https://<abc123>.ngrok.app/sendblue/webhook
 ```
 
-On free ngrok, **the webhook auto-registers with Sendblue every boot** — no manual paste needed. For stable URLs (ngrok reserved or Cloudflare Tunnel), set the webhook once in the dashboard.
+Boop synchronizes the signed Sendblue webhook on every boot, whether the public URL rotates or stays stable. No manual dashboard paste should be needed.
 
 Text your Sendblue-provisioned number from a **different** phone. The agent replies.
 
@@ -198,9 +198,9 @@ npm run desktop:dist   # build unsigned distributables
 | `npm run desktop:pack` | Creates an unsigned app bundle under `dist/` for local testing. | No, it only builds |
 | `npm run desktop:dist` | Creates unsigned distributable artifacts. | No, it only builds |
 
-The app keeps secrets and local state out of the app bundle. For an installed macOS app, `.env.local`, `.convex`, generated Convex files, and local data live under `~/Library/Application Support/Boop/runtime`. The app bundle contains the runnable project and the Boop app icon; the runtime folder contains the machine-specific setup.
+The app keeps secrets and local state out of the app bundle. For an installed macOS app, `.env.local`, `.convex`, generated Convex files, and local data live under `~/Library/Application Support/Boop/runtime`. The app bundle contains the runnable project and the Boop app icon; the runtime folder contains the machine-specific setup. The optional local BGE-large embedding model is not bundled either: setup downloads about 1.3GB into the runtime's `data/` folder when you choose it. Only health checks and provider webhook routes are exposed through the public tunnel; dashboard, browser-control, and local configuration routes remain local to your Mac.
 
-> **⚠ ngrok free plan gives you a new URL every time.** That means every time you restart `npm run dev`, your Sendblue webhook URL is dead until you paste the new one in.
+> **ngrok's free plan gives you a new URL every time.** Boop automatically registers the new Sendblue webhook when `npm run dev` or the desktop app starts, so you should not need to paste it manually. If texts stop arriving, run `npm run sendblue:webhook:check` to compare Sendblue's registration with the active tunnel.
 >
 > If you're going to run this for more than a quick demo, **strongly recommend one of:**
 > - **ngrok paid plan** — gives you a reserved domain that stays the same forever
@@ -217,14 +217,14 @@ The app keeps secrets and local state out of the app bundle. For an installed ma
 
 ## How the Sendblue integration works
 
-Boop uses the [Sendblue CLI](https://github.com/sendblue-api/sendblue-cli) (`@sendblue/cli`) to eliminate almost all manual dashboard work. Three NPM scripts wrap it:
+Boop uses the [Sendblue CLI](https://github.com/sendblue-api/sendblue-cli) (`@sendblue/cli`) to eliminate almost all manual dashboard work. These NPM scripts wrap it:
 
 | Command | What it does |
 |---|---|
 | `npm run setup` | Interactive. Offers to run `sendblue login` / `sendblue setup` and pulls `api_key_id` + `api_secret_key` from `sendblue show-keys` into `.env.local`. |
 | `npm run sendblue:sync` | Runs `sendblue lines`, parses your provisioned phone number, and writes `SENDBLUE_FROM_NUMBER` to `.env.local` in E.164 format. Run this anytime your number changes or got set wrong. |
-| `npm run sendblue:webhook -- <url>` | Runs `sendblue webhooks list`, removes stale ngrok/tunnel hooks, and adds `<url>` as a `type=receive` inbound webhook. Called automatically by `npm run dev`. |
-| `npm run sendblue:webhook:check` | Read-only check. Compares the active ngrok tunnel (or `PUBLIC_URL`) with the Sendblue receive webhook currently registered. Add `-- <url>` to check a specific URL. |
+| `npm run sendblue:webhook -- <url>` | Uses the Sendblue API to remove stale tunnel hooks, register `<url>` as a `type=receive` inbound webhook, and synchronize its signing secret. Called automatically by `npm run dev`. |
+| `npm run sendblue:webhook:check` | Read-only check. Compares the active ngrok tunnel (or `PUBLIC_URL`) and signing secret with the Sendblue receive webhook currently registered. Add `-- <url>` to check a specific URL. |
 
 ### The `npm run dev` lifecycle
 
@@ -240,7 +240,7 @@ Boop uses the [Sendblue CLI](https://github.com/sendblue-api/sendblue-cli) (`@se
        convex → "Convex functions ready"
        debug  → "Local:  http://localhost:5173/"
        ngrok  → tunnel URL visible at http://127.0.0.1:4040
- 4. Auto-register the webhook (FREE ngrok only, not reserved domains):
+ 4. Synchronize the signed webhook for the active public URL:
        webhook │ [webhook] removed stale https://old.ngrok-free.app/sendblue/webhook
        webhook │ [webhook] registered https://new.ngrok-free.app/sendblue/webhook (type=receive)
  5. The desktop app checks that Sendblue has the active webhook registered.
@@ -251,7 +251,7 @@ The banner will look like:
 
 ```
 ════════════════════════════════════════════════════════════════════
-  Boop is ready — ngrok tunnel is live  (webhook auto-registered).
+  Boop is ready — ngrok tunnel is live.
 
   🐶 Debug dashboard (click me):   http://localhost:5173
   🌐 Public URL:                   https://abc123.ngrok-free.app
@@ -265,9 +265,9 @@ The banner will look like:
 | Setup | Auto-register fires? | Why |
 |---|---|---|
 | Free ngrok (default) | **Yes**, every boot | URL rotates; dashboard would be stale otherwise |
-| Reserved `NGROK_DOMAIN` | No | URL is stable; configure once in Sendblue dashboard |
-| Static `PUBLIC_URL` (Cloudflare Tunnel etc.) | No | Same reason |
-| `SENDBLUE_AUTO_WEBHOOK=false` | No | Manual opt-out |
+| Reserved `NGROK_DOMAIN` | **Yes**, every boot | Keeps the signing secret synchronized without duplicating the stable URL |
+| Static `PUBLIC_URL` (Cloudflare Tunnel etc.) | **Yes**, every boot | Keeps the signing secret synchronized without duplicating the stable URL |
+| `SENDBLUE_AUTO_WEBHOOK=false` | No | Manual opt-out; run `npm run sendblue:webhook -- <url>` at least once to configure the required signing secret |
 
 ### What you'll see in the server logs during a conversation
 
@@ -507,7 +507,7 @@ Boop outsources 3rd-party service integrations to [Composio](https://composio.de
    COMPOSIO_API_KEY=sk-comp-...
    ```
 3. `npm run dev`.
-4. Open the debug dashboard → **Connections** tab. You'll see a curated list of ~20 cards. For each one: click **Connect**, authenticate on Composio's hosted page, done — Composio ships managed OAuth for every curated toolkit. (If you add a custom toolkit that needs your own OAuth app, the card flips to a "Set up →" state pointing at `platform.composio.dev/auth-configs` — rare, but supported.)
+4. Open the debug dashboard → **Connections** tab. The connected and common integrations appear first, followed by the full Composio catalog with each toolkit's available tool count. Click **Connect**, authenticate on Composio's hosted page, and you are done. If a toolkit needs your own OAuth app, its row points to `platform.composio.dev/auth-configs` for the one-time setup.
 
 After a successful connect, the agent can use that toolkit immediately — no restart.
 

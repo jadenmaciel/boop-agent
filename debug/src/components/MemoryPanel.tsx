@@ -76,7 +76,13 @@ function MemoryImageBadge({ storageId }: { storageId: string }) {
   );
 }
 
-export function MemoryPanel({ isDark }: { isDark: boolean }) {
+export function MemoryPanel({
+  isDark,
+  demoMode = false,
+}: {
+  isDark: boolean;
+  demoMode?: boolean;
+}) {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [tierFilter, setTierFilter] = useState<Tier>("all");
   const [segmentFilter, setSegmentFilter] = useState<Segment>("all");
@@ -85,7 +91,7 @@ export function MemoryPanel({ isDark }: { isDark: boolean }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const removeMemory = useMutation(api.memoryRecords.remove);
 
-  const records = useQuery(api.memoryRecords.list, {
+  const records = useQuery(api.memoryRecords.listForDashboard, {
     tier: tierFilter !== "all" ? (tierFilter as any) : undefined,
     lifecycle: "active",
     limit: 500,
@@ -131,7 +137,7 @@ export function MemoryPanel({ isDark }: { isDark: boolean }) {
       stat={<HeaderPill isDark={isDark}>{filtered.length}/{allRecords.length}</HeaderPill>}
       maxWidth={viewMode === "graph" ? "max-w-none" : "max-w-[1040px]"}
     >
-      <EmbeddingBanner isDark={isDark} />
+      {!demoMode && <EmbeddingBanner isDark={isDark} />}
       <div className={panelCardClass(isDark, "flex flex-wrap items-center gap-2 px-3 py-3")}>
         <div
           className={`segmented-control flex items-center rounded-2xl border p-1 ${
@@ -199,7 +205,7 @@ export function MemoryPanel({ isDark }: { isDark: boolean }) {
       </div>
 
       {viewMode === "graph" && (
-        <div className={panelCardClass(isDark, "h-[calc(100vh-190px)] min-h-[520px] overflow-hidden")}>
+        <div className={panelCardClass(isDark, "h-[calc(100vh-260px)] min-h-[520px] overflow-hidden")}>
           <MemoryGraphView records={allRecords as any} isDark={isDark} />
         </div>
       )}

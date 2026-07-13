@@ -200,7 +200,7 @@ async function waitForNgrokUrl(timeoutMs = 15000) {
   return null;
 }
 
-function showBanner(url, stable) {
+function showBanner(url, stable, webhookSyncState) {
   const line = "═".repeat(68);
   const webhook = `${url}/sendblue/webhook`;
   const from = envVars.SENDBLUE_FROM_NUMBER;
@@ -210,15 +210,14 @@ function showBanner(url, stable) {
 
   const headline = stable
     ? `your STABLE public URL is live.`
-    : `ngrok tunnel is live  (webhook auto-registered with Sendblue).`;
-  const footer = stable
-    ? ``
-    : `\n${C.dim}  ℹ The inbound webhook above was registered with Sendblue automatically.
-    Set SENDBLUE_AUTO_WEBHOOK=false in .env.local to disable, or pick a
-    stable URL (ngrok paid / Cloudflare Tunnel) via \`npm run setup\`.${C.reset}\n`;
-  const guide = stable
-    ? `\n  → First time? Sendblue dashboard → API Settings → Webhook\n    Configuration → add ${webhook} as INBOUND MESSAGE.\n`
-    : ``;
+    : `ngrok tunnel is live.`;
+  const footerMessage =
+    webhookSyncState === "synchronized"
+      ? "The inbound webhook above was synchronized with Sendblue automatically."
+      : webhookSyncState === "disabled"
+        ? "Automatic Sendblue webhook sync is disabled. Run npm run sendblue:webhook -- <url> after changing the public URL."
+        : "Sendblue webhook sync failed. Check the webhook log above, then run npm run sendblue:webhook:check.";
+  const footer = `\n${C.dim}  ℹ ${footerMessage}${C.reset}\n`;
 
   console.log(`
 ${C.banner}${line}
@@ -227,7 +226,7 @@ ${C.banner}${line}
   🐶 Debug dashboard (click me):   ${dashboardUrl}
   🌐 Public URL:                   ${url}
   📮 Sendblue webhook (inbound):   ${webhook}
-${fromLine}${guide}
+${fromLine}
 ${line}${C.reset}${footer}`);
 }
 
@@ -299,7 +298,7 @@ if (useNgrok && ngrokInstalled) {
 // Wait for all the core services to be ready before printing the banner,
 // so the URL isn't dangled in front of the user while Convex is still booting.
 async function autoRegisterWebhook(publicUrl) {
-  if (envVars.SENDBLUE_AUTO_WEBHOOK === "false") return;
+  if (envVars.SENDBLUE_AUTO_WEBHOOK === "false") return "disabled";
   const webhookUrl = `${publicUrl}/sendblue/webhook`;
   const prefix = `${C.ngrok}webhook${C.reset} │ `;
   const child = spawn(nodeCmd, ["scripts/sendblue-webhook.mjs", webhookUrl], {
@@ -316,7 +315,8 @@ async function autoRegisterWebhook(publicUrl) {
       if (line.trim()) process.stdout.write(prefix + line + "\n");
     }
   });
-  await new Promise((r) => child.on("exit", r));
+  const code = await new Promise((resolve) => child.on("exit", resolve));
+  return code === 0 ? "synchronized" : "failed";
 }
 
 let sendblueWebhookRegistrationUrl = "";
@@ -378,23 +378,25 @@ Promise.all([
   .then(async ([, , , ngrokUrl]) => {
     if (useNgrok && ngrokInstalled) {
       if (ngrokUrl) {
-        // Only auto-register for ephemeral ngrok URLs. Reserved domains and
-        // static URLs are already fixed in the Sendblue dashboard.
-        if (!ngrokDomain) {
-          await registerSendblueWebhookOnce((await readNgrokUrl()) ?? ngrokUrl);
-        }
+        // Synchronize both the URL and signing secret. This is required even
+        // for a reserved domain because older dashboard-created webhooks may
+        // not have Boop's signing secret yet.
+        const webhookSyncState = await registerSendblueWebhookOnce(
+          (await readNgrokUrl()) ?? ngrokUrl,
+        );
         // Composio webhook subscription is fully programmatic (PATCHable),
         // so we can refresh it on every restart regardless of whether the
         // domain is reserved.
         await autoRegisterComposioWebhook(ngrokUrl);
-        showBanner(ngrokUrl, Boolean(ngrokDomain));
+        showBanner(ngrokUrl, Boolean(ngrokDomain), webhookSyncState);
       } else {
         console.log(
           `${C.ngrok}ngrok${C.reset} │ could not read tunnel URL from http://127.0.0.1:4040 — check ngrok output above.`,
         );
       }
     } else if (hasStaticUrl) {
-      showBanner(publicUrl, true);
+      const webhookSyncState = await registerSendblueWebhookOnce(publicUrl);
+      showBanner(publicUrl, true, webhookSyncState);
     } else {
       const line = "═".repeat(68);
       console.log(`

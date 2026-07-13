@@ -14,6 +14,7 @@
 //   3. Adds the new URL as type=receive (unless already registered).
 
 import { spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
@@ -23,6 +24,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 const envPath = resolve(root, ".env.local");
 const API_BASE = "https://api.sendblue.com";
+const WEBHOOK_SECRET_CONTEXT = "boop-sendblue-webhook-v1";
+
+export function deriveWebhookSecret(apiSecret) {
+  return createHmac("sha256", apiSecret).update(WEBHOOK_SECRET_CONTEXT).digest("hex");
+}
 
 function readEnv() {
   if (!existsSync(envPath)) return {};
@@ -93,12 +99,6 @@ function spawnableNodeCommand() {
 
 function nodeScriptCommand(scriptPath, leading) {
   const node = spawnableNodeCommand();
-  if (process.platform !== "win32" && node !== "node") {
-    return {
-      cmd: "/bin/sh",
-      leading: ["-lc", `exec "${node}" "$@"`, "boop-node", scriptPath, ...leading],
-    };
-  }
   return { cmd: node, leading: [scriptPath, ...leading] };
 }
 
@@ -237,19 +237,35 @@ async function sendblueJson(env, pathname, options = {}) {
   return response.json().catch(() => ({}));
 }
 
+export function parseApiWebhookListing(webhooks) {
+  const hooks = [];
+  for (const [type, entries] of Object.entries(webhooks || {})) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      const url = typeof entry === "string" ? entry : entry?.url;
+      if (typeof url === "string") hooks.push({ url, type });
+    }
+  }
+  return {
+    current: hooks,
+    globalSecret: typeof webhooks?.globalSecret === "string" ? webhooks.globalSecret : "",
+  };
+}
+
 async function apiListWebhooks(env) {
   const raw = await sendblueJson(env, "/api/account/webhooks");
-  const hooks = [];
-  for (const [type, urls] of Object.entries(raw.webhooks || {})) {
-    for (const hookUrl of urls) hooks.push({ url: hookUrl, type });
-  }
-  return hooks;
+  return parseApiWebhookListing(raw.webhooks);
 }
 
 async function apiAddWebhook(env, url) {
+  const secret = deriveWebhookSecret(env.SENDBLUE_API_SECRET);
   await sendblueJson(env, "/api/account/webhooks", {
     method: "POST",
-    body: JSON.stringify({ webhooks: [url], type: "receive" }),
+    body: JSON.stringify({
+      webhooks: [{ url, secret }],
+      globalSecret: secret,
+      type: "receive",
+    }),
   });
 }
 
@@ -274,14 +290,18 @@ async function cliListWebhooks() {
 async function listWebhooks(env) {
   if (env.SENDBLUE_API_KEY && env.SENDBLUE_API_SECRET) {
     try {
+      const listing = await apiListWebhooks(env);
       return {
-        current: await apiListWebhooks(env),
+        ...listing,
         source: "api",
+        signingReady:
+          listing.globalSecret === deriveWebhookSecret(env.SENDBLUE_API_SECRET),
       };
     } catch (err) {
       const cli = await cliListWebhooks();
       return {
         ...cli,
+        signingReady: false,
         warning: `API list failed (${err.message}); used Sendblue CLI instead.`,
       };
     }
@@ -290,11 +310,12 @@ async function listWebhooks(env) {
   const cli = await cliListWebhooks();
   return {
     ...cli,
+    signingReady: false,
     warning: "SENDBLUE_API_KEY/SECRET are not set; used Sendblue CLI instead.",
   };
 }
 
-function webhookCheck(url, current, source, warning = "") {
+export function webhookCheck(url, current, source, signingReady, warning = "") {
   const receive = current.filter((wh) => wh.type === "receive");
   const currentMatches = receive.filter((wh) => wh.url === url);
   const staleReceiveWebhooks = receive
@@ -303,9 +324,9 @@ function webhookCheck(url, current, source, warning = "") {
   const otherReceiveWebhooks = receive
     .map((wh) => wh.url)
     .filter((hookUrl) => hookUrl !== url && !STALE_DOMAIN_RE.test(hookUrl));
-  const state = currentMatches.length > 0
+  const state = currentMatches.length > 0 && signingReady
     ? "registered"
-    : staleReceiveWebhooks.length > 0
+    : currentMatches.length > 0 || staleReceiveWebhooks.length > 0
       ? "mismatch"
       : "missing";
   const detailParts = [];
@@ -316,13 +337,16 @@ function webhookCheck(url, current, source, warning = "") {
   } else {
     detailParts.push("active tunnel is registered with Sendblue");
   }
+  if (!signingReady) {
+    detailParts.push("webhook signing secret is not synchronized");
+  }
   if (staleReceiveWebhooks.length) {
     detailParts.push(`${staleReceiveWebhooks.length} stale tunnel hook(s) still registered`);
   }
   if (warning) detailParts.push(warning);
 
   return {
-    ok: currentMatches.length > 0,
+    ok: currentMatches.length > 0 && signingReady,
     state,
     source,
     checkedAt: new Date().toISOString(),
@@ -348,27 +372,16 @@ function printWebhookCheck(check) {
   console.log(`[webhook] details: ${check.details}`);
 }
 
-async function syncWebhooks(url, current, removeWebhook, addWebhook) {
-  let hasTarget = false;
+export async function syncWebhooks(url, current, removeWebhook, addWebhook) {
+  const hasTarget = current.some((wh) => wh.type === "receive" && wh.url === url);
 
   // 1. Remove stale ngrok/tunnel URLs so we don't accumulate zombie hooks.
-  // Also collapse duplicate entries for the current ephemeral URL; two local
-  // helpers can race during app restarts, and Sendblue accepts duplicate rows.
+  // Keep duplicate copies of the current URL. Sendblue's delete endpoint is
+  // URL-based and may remove every matching row, which would turn a harmless
+  // duplicate into a missing webhook during app restart.
   for (const wh of current) {
     if (wh.type !== "receive") continue;
-    if (wh.url === url) {
-      if (!hasTarget) {
-        hasTarget = true;
-        continue;
-      }
-      try {
-        await removeWebhook(wh.url);
-        console.log(`[webhook] removed duplicate ${wh.url}`);
-      } catch (err) {
-        console.warn(`[webhook] could not remove duplicate ${wh.url}: ${err.message}`);
-      }
-      continue;
-    }
+    if (wh.url === url) continue;
     if (!STALE_DOMAIN_RE.test(wh.url)) continue;
     try {
       await removeWebhook(wh.url);
@@ -434,8 +447,8 @@ async function main() {
 
   if (checkOnly) {
     try {
-      const { current, source, warning } = await listWebhooks(env);
-      const result = webhookCheck(webhookUrl, current, source, warning);
+      const { current, source, signingReady, warning } = await listWebhooks(env);
+      const result = webhookCheck(webhookUrl, current, source, signingReady, warning);
       if (json) {
         console.log(JSON.stringify(result));
       } else {
@@ -468,38 +481,39 @@ async function main() {
 
   if (env.SENDBLUE_API_KEY && env.SENDBLUE_API_SECRET) {
     try {
-      const current = await apiListWebhooks(env);
+      const listing = await apiListWebhooks(env);
+      const expectedSecret = deriveWebhookSecret(env.SENDBLUE_API_SECRET);
+      if (
+        listing.current.some((hook) => hook.type === "receive" && hook.url === webhookUrl) &&
+        listing.globalSecret !== expectedSecret
+      ) {
+        await apiAddWebhook(env, webhookUrl);
+        console.log("[webhook] synchronized Sendblue webhook signing secret");
+      }
       await syncWebhooks(
         webhookUrl,
-        current,
+        listing.current,
         (hookUrl) => apiRemoveWebhook(env, hookUrl),
         (hookUrl) => apiAddWebhook(env, hookUrl),
       );
       return;
     } catch (err) {
-      console.warn(`[webhook] API registration failed (${err.message}); falling back to Sendblue CLI.`);
+      throw new Error(`Sendblue API registration failed: ${err.message}`);
     }
-  } else {
-    console.warn("[webhook] SENDBLUE_API_KEY/SECRET not set in .env.local; falling back to Sendblue CLI.");
   }
 
-  let cli;
-  try {
-    cli = await cliListWebhooks();
-  } catch (err) {
-    console.error(`[webhook] couldn't list webhooks (${err.message}). Make sure you've logged in with \`npx @sendblue/cli login\`.`);
-    return;
-  }
-  const { current, cmd, leading } = cli;
-  await syncWebhooks(
-    webhookUrl,
-    current,
-    (hookUrl) => runCapture(cmd, [...leading, "webhooks", "remove", hookUrl, "--type", "receive"]),
-    (hookUrl) => runCapture(cmd, [...leading, "webhooks", "add", hookUrl, "--type", "receive"]),
+  throw new Error(
+    "SENDBLUE_API_KEY and SENDBLUE_API_SECRET are required to register a signed webhook.",
   );
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirectExecution = Boolean(
+  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url),
+);
+
+if (isDirectExecution) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

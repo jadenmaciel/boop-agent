@@ -531,7 +531,7 @@ function summarizeResultItem(item: unknown): string {
 }
 
 export function AgentsPanel({ isDark }: { isDark: boolean }) {
-  const agents = useQuery(api.agents.list, { limit: 60 });
+  const agents = useQuery(api.agents.listForDashboard, { limit: 60 });
   const [selected, setSelected] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -703,8 +703,8 @@ function AgentDetail({
   onBack: () => void;
   isDark: boolean;
 }) {
-  const agent = useQuery(api.agents.get, { agentId });
-  const logs = useQuery(api.agents.getLogs, { agentId, limit: 500 });
+  const agent = useQuery(api.agents.getForDashboard, { agentId });
+  const logs = useQuery(api.agents.getLogsForDashboard, { agentId, limit: 500 });
   const [requestOpen, setRequestOpen] = useState(false);
   const [responseOpen, setResponseOpen] = useState(false);
 

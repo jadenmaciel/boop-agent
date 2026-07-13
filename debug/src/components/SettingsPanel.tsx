@@ -394,7 +394,7 @@ function DemoModeRow({ isDark }: { isDark: boolean }) {
   const counts = status?.counts;
   const rowCount = status?.total ?? 0;
   const summary = counts
-    ? `${counts.agents} agents / ${counts.agentLogs} logs / ${counts.memories} memories / ${counts.automationRuns} automation runs`
+    ? `${counts.agents} agents + sub-agents / ${counts.agentLogs} tool logs / ${counts.memories} memories / ${counts.automationRuns} automation runs`
     : "Preparing demo dataset status";
   const debugLine = loading
     ? "settings.debug_demo_mode = ..."
@@ -443,7 +443,7 @@ function DemoModeRow({ isDark }: { isDark: boolean }) {
   return (
     <SettingShell
       label="Demo mode"
-      description="Seeds realistic namespaced records across agents, tool traces, memories, memory events, automations, conversations, consolidation, and usage so every dashboard screen has data to inspect."
+      description="Seeds realistic namespaced records across agents, sub-agents, tool traces, memories, memory events, automations, conversations, consolidation, usage, and demo connection catalogs so every dashboard screen has data to inspect."
       debugLine={debugLine}
       isDark={isDark}
       control={

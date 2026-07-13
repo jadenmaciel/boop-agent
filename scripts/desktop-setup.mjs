@@ -121,6 +121,15 @@ function isMutableRuntimePath(relativePath) {
   );
 }
 
+function lstatIfExists(value) {
+  try {
+    return lstatSync(value);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 function copyRuntimeItem(sourceRoot, targetRoot, relativePath) {
   if (isMutableRuntimePath(relativePath)) return;
 
@@ -131,13 +140,27 @@ function copyRuntimeItem(sourceRoot, targetRoot, relativePath) {
   const stat = lstatSync(source);
   if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
+    const targetStat = lstatIfExists(target);
+    if (targetStat && !targetStat.isDirectory()) {
+      rmSync(target, { force: true, recursive: true });
+    }
     mkdirSync(target, { recursive: true });
-    for (const entry of readdirSync(source).sort()) {
+    const sourceEntries = new Set(readdirSync(source));
+    for (const entry of readdirSync(target)) {
+      const childPath = join(relativePath, entry);
+      if (isMutableRuntimePath(childPath) || sourceEntries.has(entry)) continue;
+      rmSync(join(target, entry), { force: true, recursive: true });
+    }
+    for (const entry of [...sourceEntries].sort()) {
       copyRuntimeItem(sourceRoot, targetRoot, join(relativePath, entry));
     }
     return;
   }
 
+  const targetStat = lstatIfExists(target);
+  if (targetStat && !targetStat.isFile()) {
+    rmSync(target, { force: true, recursive: true });
+  }
   mkdirSync(dirname(target), { recursive: true });
   copyFileSync(source, target);
 }

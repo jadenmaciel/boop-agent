@@ -5,9 +5,25 @@ import { handleUserMessage } from "./interaction-agent.js";
 import { broadcast } from "./broadcast.js";
 import { validateImageHeader, MAX_IMAGE_BYTES, type ImageMediaType } from "./images/mime.js";
 import { redactContactHandle, redactPhoneNumbers } from "./privacy.js";
+import { maybeHandleScriptedDemoReply } from "./scripted-demo-replies.js";
+import { verifySendblueWebhookSecret } from "./sendblue-webhook-auth.js";
 
 const API_BASE = "https://api.sendblue.com/api";
 const MAX_CHUNK = 2900;
+
+export function extractSendblueMediaUrls(
+  mediaUrl: unknown,
+  mediaUrls: unknown,
+): string[] {
+  const urls = new Set<string>();
+  if (Array.isArray(mediaUrls)) {
+    for (const value of mediaUrls) {
+      if (typeof value === "string" && value.trim()) urls.add(value.trim());
+    }
+  }
+  if (typeof mediaUrl === "string" && mediaUrl.trim()) urls.add(mediaUrl.trim());
+  return [...urls];
+}
 
 function stripMarkdown(text: string): string {
   return text
@@ -82,7 +98,9 @@ export async function sendImessage(toNumber: string, text: string): Promise<void
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[sendblue] send failed ${res.status}: ${body}`);
+      console.error(
+        `[sendblue] send failed ${res.status}: ${redactPhoneNumbers(body).slice(0, 500)}`,
+      );
       if (body.includes("missing required parameter") && body.includes("from_number")) {
         console.error(
           `[sendblue] → Set SENDBLUE_FROM_NUMBER in .env.local to your Sendblue-provisioned number and restart the server.`,
@@ -206,16 +224,14 @@ export function createSendblueRouter(): express.Router {
   const router = express.Router();
 
   router.post("/webhook", async (req, res) => {
+    if (!verifySendblueWebhookSecret(req.get("sb-signing-secret"))) {
+      res.status(401).json({ error: "invalid webhook signature" });
+      return;
+    }
+
     const { content, from_number, is_outbound, message_handle, media_url, media_urls } =
       req.body ?? {};
-    const rawUrls: string[] = [];
-    if (Array.isArray(media_urls)) {
-      for (const u of media_urls) {
-        if (typeof u === "string" && u.length > 0) rawUrls.push(u);
-      }
-    } else if (typeof media_url === "string" && media_url.length > 0) {
-      rawUrls.push(media_url);
-    }
+    const rawUrls = extractSendblueMediaUrls(media_url, media_urls);
     if (is_outbound || !from_number || (!content && rawUrls.length === 0)) {
       res.json({ ok: true, skipped: true });
       return;
@@ -249,6 +265,20 @@ export function createSendblueRouter(): express.Router {
 
     broadcast("message_in", { conversationId, content, from_number, handle: message_handle });
     res.json({ ok: true });
+
+    if (
+      await maybeHandleScriptedDemoReply(
+        {
+          conversationId,
+          content: textForLog,
+          fromNumber: from_number,
+          turnTag,
+        },
+        { sendImessage, sendTypingIndicator },
+      )
+    ) {
+      return;
+    }
 
     const stopTyping = startTypingLoop(from_number);
     try {

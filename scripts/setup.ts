@@ -166,12 +166,6 @@ function spawnableNodeCommand(): string {
 
 function nodeScriptCommand(scriptPath: string, leading: string[]): CommandSpec {
   const node = spawnableNodeCommand();
-  if (process.platform !== "win32" && node !== "node") {
-    return {
-      cmd: "/bin/sh",
-      leading: ["-lc", `exec "${node}" "$@"`, "boop-node", scriptPath, ...leading],
-    };
-  }
   return { cmd: node, leading: [scriptPath, ...leading] };
 }
 
@@ -730,7 +724,7 @@ how you want to generate embeddings:
 
   • Local  — free, runs in-process via @huggingface/transformers
             (Xenova/bge-large-en-v1.5, 1024-dim). First run downloads
-            ~440MB and caches forever. No API key.
+            ~1.3GB and caches in Boop's local data folder. No API key.
   • Voyage — paid, ~$0.06/M tokens. Slightly stronger English retrieval.
   • OpenAI — paid, ~$0.13/M tokens. Comparable to Voyage.
 
@@ -786,7 +780,7 @@ so you can switch later by adding/removing the API key.
       type: "confirm",
       name: "preload",
       message:
-        "Pre-download the local model now? (~440MB, ~30s on broadband — saves the wait on first recall)",
+        "Pre-download the local model now? (~1.3GB — saves the wait on first recall)",
       initial: true,
     });
     if (preload) {

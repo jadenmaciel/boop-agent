@@ -3,6 +3,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const isMac = process.platform === "darwin";
 const productName = "Boop";
@@ -12,6 +13,8 @@ const mutableRuntimeItems = [
   ".convex",
   "convex/_generated",
   "data",
+  "debug/dist",
+  "dist",
   "node_modules",
 ];
 const runtimeItems = [
@@ -70,9 +73,20 @@ app.setName(productName);
 app.setPath("userData", desktopDataRoot());
 
 function isInsideMutablePath(relativePath) {
+  const normalized = relativePath.split(path.sep).join("/");
+  if (/^\.env\..+\.local$/.test(normalized)) return true;
   return mutableRuntimeItems.some(
-    (item) => relativePath === item || relativePath.startsWith(`${item}/`),
+    (item) => normalized === item || normalized.startsWith(`${item}/`),
   );
+}
+
+function lstatIfExists(value) {
+  try {
+    return fs.lstatSync(value);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 function copyRuntimeItem(sourceRoot, targetRoot, relativePath) {
@@ -82,15 +96,31 @@ function copyRuntimeItem(sourceRoot, targetRoot, relativePath) {
   const target = path.join(targetRoot, relativePath);
   if (!fs.existsSync(source)) return;
 
-  const stat = fs.statSync(source);
+  const stat = fs.lstatSync(source);
+  if (stat.isSymbolicLink()) return;
   if (stat.isDirectory()) {
+    const targetStat = lstatIfExists(target);
+    if (targetStat && !targetStat.isDirectory()) {
+      fs.rmSync(target, { force: true, recursive: true });
+    }
     fs.mkdirSync(target, { recursive: true });
+
+    const sourceEntries = new Set(fs.readdirSync(source));
+    for (const entry of fs.readdirSync(target)) {
+      const childPath = path.join(relativePath, entry);
+      if (isInsideMutablePath(childPath) || sourceEntries.has(entry)) continue;
+      fs.rmSync(path.join(target, entry), { force: true, recursive: true });
+    }
     for (const entry of fs.readdirSync(source)) {
       copyRuntimeItem(sourceRoot, targetRoot, path.join(relativePath, entry));
     }
     return;
   }
 
+  const targetStat = lstatIfExists(target);
+  if (targetStat && !targetStat.isFile()) {
+    fs.rmSync(target, { force: true, recursive: true });
+  }
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);
 }
@@ -98,7 +128,17 @@ function copyRuntimeItem(sourceRoot, targetRoot, relativePath) {
 function linkNodeModules(sourceRoot, targetRoot) {
   const source = path.join(sourceRoot, "node_modules");
   const target = path.join(targetRoot, "node_modules");
-  if (!fs.existsSync(source) || fs.existsSync(target)) return;
+  if (!fs.existsSync(source)) return;
+  try {
+    const targetStat = fs.lstatSync(target);
+    if (targetStat.isSymbolicLink()) {
+      const current = fs.readlinkSync(target);
+      if (path.resolve(path.dirname(target), current) === source) return;
+    }
+    fs.rmSync(target, { force: true, recursive: true });
+  } catch {
+    // Missing target is the normal first-launch path.
+  }
   const type = process.platform === "win32" ? "junction" : "dir";
   fs.symlinkSync(source, target, type);
 }
@@ -407,6 +447,7 @@ function ensureNativeWindowButtons() {
 }
 
 function createWindow() {
+  const statusPageUrl = pathToFileURL(path.join(__dirname, "status.html")).href;
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 780,
@@ -423,8 +464,18 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https://") || url.startsWith("http://")) {
+      shell.openExternal(url).catch(() => undefined);
+    }
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (url !== statusPageUrl) event.preventDefault();
   });
 
   if (isMac) {
@@ -615,17 +666,18 @@ function runBootstrap(command, args) {
   });
 }
 
-async function ensureConvexGenerated() {
+async function syncConvexRuntime() {
   const generatedApi = path.join(runtimeRoot, "convex", "_generated", "api.js");
-  if (fs.existsSync(generatedApi)) return;
-
   const convex = localCommand("convex");
   setStatus({
     state: "starting",
     convex: "starting",
-    lastMessage: "Generating Convex files in the desktop runtime folder.",
+    lastMessage: fs.existsSync(generatedApi)
+      ? "Synchronizing Convex functions for this desktop version."
+      : "Generating Convex files in the desktop runtime folder.",
   });
   await runBootstrap(convex.cmd, [...convex.args, "dev", "--once", "--typecheck=disable"]);
+  refreshConnectionStatus();
 }
 
 function resetServiceStatuses(state) {
@@ -658,7 +710,7 @@ async function startBoop() {
   intentionalStop = false;
   resetServiceStatuses("starting");
   try {
-    await ensureConvexGenerated();
+    await syncConvexRuntime();
   } catch (error) {
     starting = false;
     if (intentionalStop) {

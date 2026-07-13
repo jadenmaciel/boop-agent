@@ -12,7 +12,7 @@ export const LOCAL_NOTES_UNSUPPORTED_MESSAGE =
   "Local Apple Notes reads are only available on macOS.";
 
 export const LOCAL_NOTES_ACCESS_MESSAGE =
-  "Boop needs macOS Automation permission to read Apple Notes. When prompted, allow Boop to control Notes, or open System Settings -> Privacy & Security -> Automation and enable Notes for Boop. Access is read-only.";
+  "Boop needs macOS Automation permission to read Apple Notes. When prompted, allow Boop or the terminal app running npm run dev to control Notes. You can also enable it in System Settings -> Privacy & Security -> Automation. Access is read-only.";
 
 export type LocalNotesPermission = "granted" | "denied" | "notDetermined";
 

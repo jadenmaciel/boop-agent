@@ -36,6 +36,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
     "@composio/claude-agent-sdk": "^0.6.10",
+    "@composio/client": "^0.1.0-alpha.66",
     "@composio/core": "^0.6.10",
     "@hugeicons/core-free-icons": "^1.0.0",
     "@hugeicons/react": "^1.0.0",
@@ -69,11 +70,11 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/ws": "^8.5.12",
-    "electron": "^37.0.0",
+    "electron": "^43.1.0",
     "electron-builder": "^26.0.0",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.10"
   },
   "build": {
     "appId": "com.raroque.boop",
@@ -98,7 +99,17 @@
       "!convex/_generated/**",
       "!debug/dist/**",
       "!data/**",
-      "!**/*.log"
+      "!**/*.log",
+      "!**/.cache/**"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/sharp/node_modules/@img",
+        "to": "app/node_modules/sharp/node_modules/@img",
+        "filter": [
+          "sharp-libvips-*/**"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
