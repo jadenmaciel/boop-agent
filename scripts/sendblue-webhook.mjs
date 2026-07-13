@@ -298,6 +298,24 @@ async function apiRemoveWebhook(env, url) {
   });
 }
 
+export async function resynchronizeWebhookSecret(
+  url,
+  listing,
+  expectedSecret,
+  removeWebhook,
+  addWebhook,
+) {
+  const isRegistered = listing.current.some(
+    (hook) => hook.type === "receive" && hook.url === url,
+  );
+  if (!isRegistered || listing.globalSecret === expectedSecret) return false;
+
+  // Sendblue POST appends, so replace the matching URL instead of duplicating it.
+  await removeWebhook(url);
+  await addWebhook(url);
+  return true;
+}
+
 async function cliListWebhooks() {
   const { cmd, leading } = sendblueInvoker();
   const listing = await runCapture(cmd, [...leading, "webhooks", "list"]);
@@ -505,11 +523,13 @@ async function main() {
     try {
       const listing = await apiListWebhooks(env);
       const expectedSecret = deriveWebhookSecret(env.SENDBLUE_API_SECRET);
-      if (
-        listing.current.some((hook) => hook.type === "receive" && hook.url === webhookUrl) &&
-        listing.globalSecret !== expectedSecret
-      ) {
-        await apiAddWebhook(env, webhookUrl);
+      if (await resynchronizeWebhookSecret(
+        webhookUrl,
+        listing,
+        expectedSecret,
+        (hookUrl) => apiRemoveWebhook(env, hookUrl),
+        (hookUrl) => apiAddWebhook(env, hookUrl),
+      )) {
         console.log("[webhook] synchronized Sendblue webhook signing secret");
       }
       await syncWebhooks(

@@ -7,6 +7,7 @@ import {
   parseEnvText,
   parseApiWebhookListing,
   readEnvFiles,
+  resynchronizeWebhookSecret,
   webhookCheck,
 } from "../scripts/sendblue-webhook.mjs";
 import {
@@ -89,5 +90,45 @@ describe("Sendblue webhook authentication", () => {
     expect(result.ok).toBe(false);
     expect(result.state).toBe("mismatch");
     expect(result.details).toContain("signing secret is not synchronized");
+  });
+
+  it("replaces a registered webhook before re-adding it with a new signing secret", async () => {
+    const url = "https://active.example/sendblue/webhook";
+    const operations: string[] = [];
+
+    const changed = await resynchronizeWebhookSecret(
+      url,
+      { current: [{ type: "receive", url }], globalSecret: "old-secret" },
+      "new-secret",
+      async (hookUrl: string) => {
+        operations.push(`remove:${hookUrl}`);
+      },
+      async (hookUrl: string) => {
+        operations.push(`add:${hookUrl}`);
+      },
+    );
+
+    expect(changed).toBe(true);
+    expect(operations).toEqual([`remove:${url}`, `add:${url}`]);
+  });
+
+  it("leaves a registered webhook untouched when its signing secret already matches", async () => {
+    const url = "https://active.example/sendblue/webhook";
+    const operations: string[] = [];
+
+    const changed = await resynchronizeWebhookSecret(
+      url,
+      { current: [{ type: "receive", url }], globalSecret: "current-secret" },
+      "current-secret",
+      async () => {
+        operations.push("remove");
+      },
+      async () => {
+        operations.push("add");
+      },
+    );
+
+    expect(changed).toBe(false);
+    expect(operations).toEqual([]);
   });
 });
