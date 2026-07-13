@@ -398,7 +398,7 @@ function parseSendbluePhones(output: string): string[] {
     /* not JSON, fall through to text parsing */
   }
 
-  // `sendblue lines` formats like "+1 (305) 336-9541".
+  // `sendblue lines` formats numbers like "+1 (555) 010-1234".
   for (const rawLine of clean.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line.startsWith("+")) continue;

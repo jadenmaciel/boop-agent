@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   deriveWebhookSecret,
+  parseEnvText,
   parseApiWebhookListing,
+  readEnvFiles,
   webhookCheck,
 } from "../scripts/sendblue-webhook.mjs";
 import {
@@ -10,6 +15,40 @@ import {
 } from "../server/sendblue-webhook-auth.js";
 
 describe("Sendblue webhook authentication", () => {
+  it("parses quoted values without treating inline hashes as comments", () => {
+    expect(
+      parseEnvText(`
+        SENDBLUE_API_KEY="quoted-key"
+        SENDBLUE_API_SECRET='secret#inside' # trailing comment
+        PUBLIC_URL=https://example.test # trailing comment
+      `),
+    ).toEqual({
+      SENDBLUE_API_KEY: "quoted-key",
+      SENDBLUE_API_SECRET: "secret#inside",
+      PUBLIC_URL: "https://example.test",
+    });
+  });
+
+  it("loads .env before .env.local and lets explicit process values win", () => {
+    const root = mkdtempSync(join(tmpdir(), "boop-sendblue-env-"));
+    try {
+      const fallback = join(root, ".env");
+      const local = join(root, ".env.local");
+      writeFileSync(fallback, "SENDBLUE_API_KEY=fallback\nPUBLIC_URL=https://fallback.test\n");
+      writeFileSync(local, "SENDBLUE_API_KEY=local\nSENDBLUE_API_SECRET=local-secret\n");
+
+      expect(
+        readEnvFiles([fallback, local], { SENDBLUE_API_SECRET: "process-secret" }),
+      ).toMatchObject({
+        SENDBLUE_API_KEY: "local",
+        SENDBLUE_API_SECRET: "process-secret",
+        PUBLIC_URL: "https://fallback.test",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("derives the same scoped secret in registration and request handling", () => {
     const apiSecret = "test-api-secret-not-real";
     expect(deriveWebhookSecret(apiSecret)).toBe(deriveSendblueWebhookSecret(apiSecret));

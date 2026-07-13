@@ -255,7 +255,7 @@ function readRuntimeEnv() {
   const env = {};
   if (!runtimeRoot) return env;
 
-  for (const filename of [".env.local", ".env"]) {
+  for (const filename of [".env", ".env.local"]) {
     const file = path.join(runtimeRoot, filename);
     if (!fs.existsSync(file)) continue;
 

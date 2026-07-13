@@ -8,7 +8,7 @@
 //   node scripts/sendblue-webhook.mjs --check [public-webhook-url]
 //
 // Behavior:
-//   1. Uses the Sendblue API keys in .env.local to list current inbound hooks.
+//   1. Uses the Sendblue API keys in .env.local (falling back to .env) to list current inbound hooks.
 //   2. Removes any stale *.ngrok-free.app / *.ngrok-free.dev / *.ngrok.app / trycloudflare.com
 //      webhooks of type=receive that don't match the new URL.
 //   3. Adds the new URL as type=receive (unless already registered).
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const envPath = resolve(root, ".env.local");
+const envPaths = [resolve(root, ".env"), resolve(root, ".env.local")];
 const API_BASE = "https://api.sendblue.com";
 const WEBHOOK_SECRET_CONTEXT = "boop-sendblue-webhook-v1";
 
@@ -30,14 +30,36 @@ export function deriveWebhookSecret(apiSecret) {
   return createHmac("sha256", apiSecret).update(WEBHOOK_SECRET_CONTEXT).digest("hex");
 }
 
-function readEnv() {
-  if (!existsSync(envPath)) return {};
+export function parseEnvText(content) {
   const env = {};
-  for (const line of readFileSync(envPath, "utf8").split("\n")) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*?)(?:\s+#.*)?$/);
-    if (m) env[m[1]] = m[2].trim();
+  for (const raw of content.split(/\r?\n/)) {
+    const line = raw.trim().replace(/^export\s+/, "");
+    if (!line || line.startsWith("#")) continue;
+    const separator = line.indexOf("=");
+    if (separator === -1) continue;
+
+    const key = line.slice(0, separator).trim();
+    if (!/^[A-Z0-9_]+$/.test(key)) continue;
+    let value = line.slice(separator + 1).trim();
+    const quote = value[0];
+    if (quote === '"' || quote === "'") {
+      const closingQuote = value.lastIndexOf(quote);
+      value = closingQuote > 0 ? value.slice(1, closingQuote) : value.slice(1);
+    } else {
+      value = value.replace(/\s+#.*$/, "").trim();
+    }
+    env[key] = value;
   }
   return env;
+}
+
+export function readEnvFiles(paths = envPaths, baseEnv = process.env) {
+  const fileEnv = {};
+  for (const path of paths) {
+    if (!existsSync(path)) continue;
+    Object.assign(fileEnv, parseEnvText(readFileSync(path, "utf8")));
+  }
+  return { ...fileEnv, ...baseEnv };
 }
 
 function executableNames(name) {
@@ -411,7 +433,7 @@ async function main() {
   const checkOnly = args.includes("--check");
   const json = args.includes("--json");
   const urlArg = args.find((arg) => !arg.startsWith("--"));
-  const env = readEnv();
+  const env = readEnvFiles();
   const url = checkOnly ? await expectedWebhookUrl(env, urlArg) : urlArg;
 
   if (checkOnly && !url) {
