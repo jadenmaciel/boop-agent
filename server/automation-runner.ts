@@ -1,16 +1,16 @@
 import { Cron } from "croner";
-import { PersonalAgent } from "./personal-agent.js";
+import { OwnerMessageService } from "./owner-messages.js";
 import { sendImessage } from "./sendblue.js";
 import { StateStore, type AutomationRecord } from "./state.js";
 
 export function startAutomationLoop(
   state: StateStore,
-  agent: PersonalAgent,
+  messages: OwnerMessageService,
   intervalMs = 30_000,
 ): () => void {
   const tick = () => {
     for (const automation of state.claimDueAutomations()) {
-      void runAutomation(state, agent, automation).catch((error) => {
+      void runAutomation(state, messages, automation).catch((error) => {
         console.error(`[automation ${automation.id}] failed`, error);
       });
     }
@@ -23,7 +23,7 @@ export function startAutomationLoop(
 
 async function runAutomation(
   state: StateStore,
-  agent: PersonalAgent,
+  messages: OwnerMessageService,
   automation: AutomationRecord,
 ): Promise<void> {
   if (!automation.runId) throw new Error("Claimed automation has no run id.");
@@ -31,10 +31,7 @@ async function runAutomation(
   let result = "";
   let error: string | undefined;
   try {
-    result = await agent.respond(
-      automation.conversationId,
-      `[owner-created automation: ${automation.name}] ${automation.task}`,
-    );
+    result = await messages.runAutomation(automation);
     if (automation.conversationId.startsWith("sms:")) {
       await sendImessage(
         automation.conversationId.slice(4),
@@ -55,7 +52,7 @@ async function runAutomation(
   });
 }
 
-function nextRunFor(schedule: string, timezone: string): number | null {
+export function nextRunFor(schedule: string, timezone: string): number | null {
   try {
     return new Cron(schedule, { paused: true, timezone }).nextRun()?.getTime() ?? null;
   } catch {

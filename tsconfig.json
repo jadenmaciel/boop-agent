@@ -12,8 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "noEmit": true,
-    "allowImportingTsExtensions": false,
-    "baseUrl": "."
+    "allowImportingTsExtensions": false
   },
   "include": ["server/**/*.ts"],
   "exclude": ["node_modules"]

@@ -20,7 +20,7 @@ describe("local browser security hygiene", () => {
           "--proxy-server=http://127.0.0.1:8080",
         ].join("\n"),
       ),
-    ).toEqual(["--disable-gpu", "--proxy-server=http://127.0.0.1:8080"]);
+    ).toEqual(["--disable-gpu"]);
   });
 
   it("parses environment browser extra args with shell-style spacing", () => {

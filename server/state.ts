@@ -30,6 +30,8 @@ export interface PendingActionRecord {
   canonicalPayload: string;
   payloadHash: string;
   provenance: string;
+  codeHash: string;
+  bindingMac: string;
   riskTier: ActionRiskTier;
   status: ActionStatus;
   expiresAt: number;
@@ -201,6 +203,14 @@ export class StateStore {
       CREATE INDEX IF NOT EXISTS inbound_messages_status_created
         ON inbound_messages(status, created_at);
     `);
+    this.applyMigration(4, `
+      ALTER TABLE pending_actions ADD COLUMN binding_mac TEXT NOT NULL DEFAULT '';
+      UPDATE pending_actions
+      SET status = CASE WHEN status = 'dispatching' THEN 'unknown' ELSE 'cancelled' END,
+          result = 'Invalidated by confirmation integrity migration',
+          updated_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+      WHERE status IN ('pending', 'dispatching');
+    `);
   }
 
   private applyMigration(version: number, sql: string): void {
@@ -262,6 +272,7 @@ export class StateStore {
     provenance: string;
     riskTier: ActionRiskTier;
     codeHash: string;
+    bindingMac: string;
     expiresAt: number;
     now: number;
   }): void {
@@ -269,8 +280,8 @@ export class StateStore {
       .prepare(
         `INSERT INTO pending_actions(
           id, kind, summary, canonical_payload, payload_hash, provenance,
-          risk_tier, status, code_hash, expires_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+          risk_tier, status, code_hash, binding_mac, expires_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
       )
       .run(
         input.id,
@@ -281,6 +292,7 @@ export class StateStore {
         input.provenance,
         input.riskTier,
         input.codeHash,
+        input.bindingMac,
         input.expiresAt,
         input.now,
         input.now,
@@ -310,25 +322,60 @@ export class StateStore {
         .run(now, now, row.id);
       const action = this.getPendingAction(row.id);
       if (!action) return null;
-      return {
-        action,
-        ready:
-          action.messageApprovedAt !== null &&
-          (action.riskTier === "standard" || action.tailscaleApprovedAt !== null),
-      };
+      const ready = action.messageApprovedAt !== null &&
+        (action.riskTier === "standard" || action.tailscaleApprovedAt !== null);
+      if (!ready) return { action, ready };
+      const claimed = this.db
+        .prepare(
+          `UPDATE pending_actions SET status = 'dispatching', updated_at = ?
+           WHERE id = ? AND status = 'pending' AND expires_at > ?`,
+        )
+        .run(now, action.id, now).changes;
+      if (claimed !== 1) return null;
+      return { action: this.getPendingAction(action.id)!, ready: true };
     })();
   }
 
-  claimPendingAction(id: string, now = Date.now()): boolean {
+  claimPendingAction(id: string, bindingMac: string, now = Date.now()): boolean {
+    const dispatching = this.db
+      .prepare(
+        "SELECT 1 FROM pending_actions WHERE id = ? AND binding_mac = ? AND status = 'dispatching'",
+      )
+      .get(id, bindingMac);
+    if (dispatching) return true;
     const result = this.db
       .prepare(
         `UPDATE pending_actions SET status = 'dispatching', updated_at = ?
-         WHERE id = ? AND status = 'pending' AND expires_at > ?
+         WHERE id = ? AND binding_mac = ? AND status = 'pending' AND expires_at > ?
            AND message_approved_at IS NOT NULL
            AND (risk_tier = 'standard' OR tailscale_approved_at IS NOT NULL)`,
       )
-      .run(now, id, now);
+      .run(now, id, bindingMac, now);
     return result.changes === 1;
+  }
+
+  markInterruptedPendingActionsUnknown(now = Date.now()): number {
+    return this.db
+      .prepare(
+        `UPDATE pending_actions SET status = 'unknown',
+         result = 'Service restarted after dispatch was claimed; execution was not retried', updated_at = ?
+         WHERE status = 'dispatching'`,
+      )
+      .run(now).changes;
+  }
+
+  markDispatchingPendingActionUnknown(
+    id: string,
+    bindingMac: string,
+    result: string,
+    now = Date.now(),
+  ): boolean {
+    return this.db
+      .prepare(
+        `UPDATE pending_actions SET status = 'unknown', result = ?, updated_at = ?
+         WHERE id = ? AND binding_mac = ? AND status = 'dispatching'`,
+      )
+      .run(result, now, id, bindingMac).changes === 1;
   }
 
   finishPendingAction(
@@ -531,6 +578,33 @@ export class StateStore {
     })();
   }
 
+  recoverInterruptedAutomationRuns(
+    nextRun: (schedule: string, timezone: string) => number | null,
+    now = Date.now(),
+  ): number {
+    return this.db.transaction(() => {
+      const rows = this.db
+        .prepare(
+          `SELECT DISTINCT a.* FROM automations a
+           JOIN automation_runs r ON r.automation_id = a.id
+           WHERE r.status = 'running'`,
+        )
+        .all() as AutomationRow[];
+      this.db
+        .prepare(
+          `UPDATE automation_runs SET status = 'failed', error = 'Interrupted by restart', finished_at = ?
+           WHERE status = 'running'`,
+        )
+        .run(now);
+      for (const row of rows) {
+        this.db
+          .prepare("UPDATE automations SET next_run_at = ?, updated_at = ? WHERE id = ?")
+          .run(nextRun(row.schedule, row.timezone), now, row.id);
+      }
+      return rows.length;
+    }).immediate();
+  }
+
   addMedia(input: {
     id: string;
     path: string;
@@ -695,6 +769,15 @@ export class StateStore {
     if (changed !== 1) throw new Error(`Inbound message ${handle} is not processing.`);
   }
 
+  cancelQueuedInboundMessages(now = Date.now()): number {
+    return this.db
+      .prepare(
+        `UPDATE inbound_messages SET status = 'completed', response = 'Cancelled by STOP.', updated_at = ?
+         WHERE status IN ('pending', 'ready')`,
+      )
+      .run(now).changes;
+  }
+
   getSetting(key: string): string | null {
     const row = this.db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as
       | { value: string }
@@ -760,6 +843,7 @@ export class StateStore {
     automationRuns: number;
     inboundMessages: number;
     webhookDeliveries: number;
+    pendingActions: number;
   } {
     const cutoff = now - retentionDays * 24 * 60 * 60 * 1_000;
     return this.db.transaction(() => {
@@ -784,6 +868,12 @@ export class StateStore {
            )`,
         )
         .run(cutoff).changes;
+      const pendingActions = this.db
+        .prepare(
+          `DELETE FROM pending_actions
+           WHERE updated_at < ? AND status IN ('succeeded', 'failed', 'unknown', 'cancelled', 'expired')`,
+        )
+        .run(cutoff).changes;
       return {
         runs,
         usageRecords,
@@ -791,6 +881,7 @@ export class StateStore {
         automationRuns,
         inboundMessages,
         webhookDeliveries,
+        pendingActions,
       };
     })();
   }
@@ -812,6 +903,8 @@ interface PendingActionRow {
   canonical_payload: string;
   payload_hash: string;
   provenance: string;
+  code_hash: string;
+  binding_mac: string;
   risk_tier: ActionRiskTier;
   status: ActionStatus;
   expires_at: number;
@@ -848,6 +941,8 @@ function mapPendingAction(row: PendingActionRow): PendingActionRecord {
     canonicalPayload: row.canonical_payload,
     payloadHash: row.payload_hash,
     provenance: row.provenance,
+    codeHash: row.code_hash,
+    bindingMac: row.binding_mac,
     riskTier: row.risk_tier,
     status: row.status,
     expiresAt: row.expires_at,

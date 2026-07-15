@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:
 import { homedir, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { BrowserContext, Page } from "patchright";
-import { assertPublicHttpUrl } from "./url-policy.js";
+import { assertPublicHttpUrl, pinnedBrowserResolverArg } from "./url-policy.js";
 import {
   getBrowserSettings,
   type BrowserSettings,
@@ -184,13 +184,14 @@ function assertBrowserEnabled(settings: BrowserSettings): void {
   }
 }
 
-function launchSignature(settings: BrowserSettings, showUi: boolean): string {
+function launchSignature(settings: BrowserSettings, showUi: boolean, resolverArg: string): string {
   return JSON.stringify({
     profileDir: resolve(expandHome(settings.profileDir)),
     showUi,
     channel: settings.channel,
     executablePath: effectiveBrowserExecutablePath(settings),
     extraArgs: settings.extraArgs,
+    resolverArg,
   });
 }
 
@@ -301,7 +302,8 @@ export async function launchLocalBrowser(
     const { chromium } = await loadPatchright();
     const showUi = options.forceVisible ? true : settings.showUi;
     const executablePath = effectiveBrowserExecutablePath(settings);
-    const signature = launchSignature(settings, showUi);
+    const resolverArg = await pinnedBrowserResolverArg();
+    const signature = launchSignature(settings, showUi, resolverArg);
     const targetUrl = normalizeUrl(options.url ?? settings.startUrl);
     if (targetUrl !== "about:blank") await assertPublicHttpUrl(targetUrl);
 
@@ -326,7 +328,7 @@ export async function launchLocalBrowser(
     const launchArgs = {
       headless: !showUi,
       viewport: null,
-      args: settings.extraArgs,
+      args: [...settings.extraArgs, resolverArg],
       ...(executablePath
         ? { executablePath }
         : { channel: settings.channel || "chrome" }),

@@ -1,5 +1,6 @@
 import {
   buildComposioIntegrationModule,
+  allowedComposioToolkits,
   getComposio,
   listConnectedToolkits,
 } from "../composio.js";
@@ -12,12 +13,14 @@ export async function registerComposioToolkits(): Promise<void> {
   }
   const connected = await listConnectedToolkits();
   const active = connected.filter((c) => c.status === "ACTIVE");
+  const allowed = allowedComposioToolkits();
   if (active.length === 0) {
     console.log("[composio] 0 toolkits connected");
     return;
   }
   const seen = new Set<string>();
   for (const conn of active) {
+    if (!allowed.has(conn.slug)) continue;
     if (seen.has(conn.slug)) continue;
     seen.add(conn.slug);
     registerIntegration(buildComposioIntegrationModule(conn.slug));

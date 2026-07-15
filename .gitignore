@@ -17,4 +17,5 @@ data/
 .vite/
 debug/dist/
 .cache/
+graphify-out/
 .tsbuildinfo

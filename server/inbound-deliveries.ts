@@ -4,6 +4,8 @@ import { sendImessage, type AcceptedSendblueMessage } from "./sendblue.js";
 import { StateStore } from "./state.js";
 
 export class InboundDeliveryService {
+  private drainPromise: Promise<void> | null = null;
+
   constructor(
     private readonly state: StateStore,
     private readonly messages: OwnerMessageService,
@@ -12,16 +14,38 @@ export class InboundDeliveryService {
   ) {}
 
   async recover(): Promise<void> {
-    for (const message of this.state.pendingInboundMessages()) {
+    await this.drain();
+  }
+
+  async process(message: AcceptedSendblueMessage): Promise<void> {
+    if (message.content.trim().toUpperCase() === "STOP") {
+      await this.processOne(message);
+      return;
+    }
+    await this.drain();
+  }
+
+  private drain(): Promise<void> {
+    this.drainPromise ??= this.drainInOrder().finally(() => {
+      this.drainPromise = null;
+    });
+    return this.drainPromise;
+  }
+
+  private async drainInOrder(): Promise<void> {
+    while (true) {
+      const next = this.state.pendingInboundMessages(1)[0];
+      if (!next) return;
       try {
-        await this.process(message);
+        await this.processOne(next);
       } catch {
-        console.error(`[boop] inbound delivery retry failed for opaque handle suffix ${message.handle.slice(-6)}`);
+        console.error(`[boop] inbound delivery retry failed for opaque handle suffix ${next.handle.slice(-6)}`);
+        return;
       }
     }
   }
 
-  async process(message: AcceptedSendblueMessage): Promise<void> {
+  private async processOne(message: AcceptedSendblueMessage): Promise<void> {
     const claimed = this.state.claimInboundMessage(message.handle);
     if (!claimed) return;
     try {
@@ -29,7 +53,8 @@ export class InboundDeliveryService {
       if (reply === null) {
         const images = [];
         const errors: string[] = [];
-        for (const url of claimed.mediaUrls) {
+        const mediaUrls = claimed.content.trim().toUpperCase() === "STOP" ? [] : claimed.mediaUrls;
+        for (const url of mediaUrls) {
           try {
             images.push(await this.media.ingest(url));
           } catch (error) {

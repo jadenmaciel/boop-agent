@@ -19,6 +19,7 @@ export interface RuntimeTool {
   inputSchema: z.ZodRawShape;
   jsonSchema: Record<string, unknown>;
   handle: (args: Record<string, unknown>) => Promise<RuntimeToolResult>;
+  effect?: "read" | "write";
 }
 
 export interface RuntimeToolResult {
@@ -32,7 +33,6 @@ export interface RuntimeRunRequest {
   model: string;
   reasoningEffort?: RuntimeReasoningEffort;
   tools: RuntimeTool[];
-  claudeMcpServers?: Record<string, unknown>;
   allowedTools?: string[];
   disallowedTools?: string[];
   cwd?: string;

@@ -36,7 +36,8 @@ export class OwnerQueue {
         const abort = new AbortController();
         this.active = abort;
         try {
-          job.resolve(await job.run(abort));
+          const value = await job.run(abort);
+          job.resolve(abort.signal.aborted ? "cancelled" : value);
         } catch (error) {
           if (abort.signal.aborted) job.resolve("cancelled");
           else job.reject(error);

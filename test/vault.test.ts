@@ -8,6 +8,7 @@ const roots: string[] = [];
 
 afterEach(() => {
   delete process.env.BOOP_SYNC_BULK_MANIFEST_PATH;
+  delete process.env.BOOP_READ_ONLY_DIR;
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -58,5 +59,17 @@ describe("Vault tools", () => {
     expect(() => vault.readText(".boop-trash")).toThrow(/protected/);
     expect(vault.restore(trashed.operationId, "restored/note.md")).toMatchObject({ fileCount: 1 });
     expect(vault.readText("restored/note.md")).toBe("hello");
+  });
+
+  it("fails closed while any root-provisioned safety marker is active", () => {
+    const vaultRoot = root();
+    const guards = root();
+    writeFileSync(join(guards, "sync"), "1\n");
+    process.env.BOOP_READ_ONLY_DIR = guards;
+    const vault = new VaultService(vaultRoot);
+
+    expect(() => vault.writeText("blocked.md", "no")).toThrow(/read-only/);
+    writeFileSync(join(guards, "sync"), "0\n");
+    expect(() => vault.writeText("allowed.md", "yes")).not.toThrow();
   });
 });

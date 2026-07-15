@@ -53,6 +53,22 @@ describe("local state", () => {
     store.close();
   });
 
+  it("clears durable queued owner messages when STOP is processed", () => {
+    const store = openStore();
+    for (const handle of ["queued-1", "queued-2"]) {
+      store.acceptInboundMessage({
+        content: "later work",
+        fromNumber: "+15550000001",
+        handle,
+        mediaUrls: [],
+      });
+    }
+
+    expect(store.cancelQueuedInboundMessages()).toBe(2);
+    expect(store.pendingInboundMessages()).toEqual([]);
+    store.close();
+  });
+
   it("returns the most recent conversation turns in chronological order", () => {
     const store = openStore();
     store.addMessage({ conversationId: "sms:owner", role: "user", content: "one", at: 1 });
@@ -83,6 +99,26 @@ describe("local state", () => {
     expect(store.claimDueAutomations(1_000)).toHaveLength(1);
     expect(store.claimDueAutomations(1_000)).toEqual([]);
 
+    store.close();
+  });
+
+  it("reschedules an automation interrupted by restart without replaying it", () => {
+    const store = openStore();
+    store.createAutomation({
+      id: "auto-restart",
+      name: "digest",
+      task: "Summarize new mail",
+      schedule: "0 8 * * *",
+      timezone: "America/Denver",
+      conversationId: "sms:owner",
+      integrations: ["gmail"],
+      nextRunAt: 1_000,
+    });
+    expect(store.claimDueAutomations(1_000)).toHaveLength(1);
+
+    expect(store.recoverInterruptedAutomationRuns(() => 5_000, 2_000)).toBe(1);
+    expect(store.claimDueAutomations(4_999)).toEqual([]);
+    expect(store.claimDueAutomations(5_000)).toHaveLength(1);
     store.close();
   });
 
@@ -120,7 +156,7 @@ describe("local state", () => {
 
     expect(
       store.db.prepare("SELECT version FROM schema_migrations ORDER BY version").all(),
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
     store.addMessage({ conversationId: "sms:owner", role: "user", content: "preserved" });
     await store.backup(backupPath);
 
@@ -142,11 +178,28 @@ describe("local state", () => {
       status: "succeeded",
       at: 1,
     });
+    store.createPendingAction({
+      id: "old-action",
+      kind: "send",
+      summary: "old",
+      canonicalPayload: "{}",
+      payloadHash: "hash",
+      provenance: "[]",
+      riskTier: "standard",
+      codeHash: "code-hash",
+      bindingMac: "binding",
+      expiresAt: 2,
+      now: 1,
+    });
+    store.db
+      .prepare("UPDATE pending_actions SET status = 'expired', updated_at = 1 WHERE id = 'old-action'")
+      .run();
 
     const result = store.pruneOperationalRecords(91 * 24 * 60 * 60 * 1_000);
 
     expect(result.runs).toBe(1);
     expect(result.vaultOperations).toBe(1);
+    expect(result.pendingActions).toBe(1);
     expect(store.recentMessages("sms:owner")).toHaveLength(1);
     store.close();
   });

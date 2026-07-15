@@ -58,6 +58,7 @@ vi.mock("patchright", () => ({
 
 vi.mock("../server/browser/url-policy.js", () => ({
   assertPublicHttpUrl: vi.fn(async (url: string) => new URL(url).toString()),
+  pinnedBrowserResolverArg: vi.fn(async () => "--host-resolver-rules=MAP example.com 93.184.216.34"),
 }));
 
 import { closeLocalBrowser, launchLocalBrowser } from "../server/browser/launcher.js";

@@ -22,7 +22,7 @@ This repository contains the application. Host installation, systemd units, Goog
 - Gmail, Google Calendar, and other approved Composio integrations.
 - Read-only integration calls without confirmation; every external write is staged first.
 - Owner-created cron automations and proactive iMessage results.
-- Patchright navigation with public-domain allowlisting and private-address/DNS-rebinding defenses.
+- Patchright navigation with exact public-host allowlisting, pinned DNS, and private-address defenses.
 - Images up to 10 MB, MIME and magic-byte checked, expiring after three days unless saved.
 - `STOP` aborts the active model run, clears the FIFO queue, and invalidates pending confirmations.
 

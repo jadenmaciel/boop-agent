@@ -4,13 +4,13 @@ Boop uses Composio for Gmail, Google Calendar, and approved additional services.
 
 ## Connect an account
 
-Ask Boop to connect a toolkit and name the requested scopes. Boop shows the toolkit and scope summary, then issues a one-hour confirmation code. After confirmation it creates the Composio connection and returns the hosted OAuth URL over iMessage. The owner completes OAuth directly; Boop does not ask for credentials in chat.
+Ask Boop to connect a toolkit and name the requested scopes. The toolkit, scopes, and individual tools must already appear in the maintenance-owned `BOOP_COMPOSIO_POLICY_JSON`; undeclared access fails closed. Boop shows the toolkit and scope summary, then issues a one-hour confirmation code. After confirmation it creates the Composio connection and returns the hosted OAuth URL over iMessage. The owner completes OAuth directly; Boop does not ask for credentials in chat.
 
 New accounts and expanded scopes always repeat this flow. Service API keys, owner identity, and host credentials remain maintenance-only.
 
 ## Read and write policy
 
-Retrieval operations such as list, search, fetch, get, and query may run without confirmation. Tool names containing any write verb fail closed even if they also contain a read verb.
+Only tools explicitly marked `read` in `BOOP_COMPOSIO_POLICY_JSON` may run without confirmation. Tools explicitly marked `write` are available only through a confirmed action. Unknown tools are unavailable, regardless of their names.
 
 Sending or replying to email, changing Calendar, submitting a form, making a purchase, disconnecting an account, and every other external write calls `propose_external_action`. The owner sees the exact destination, account, content, item, quantity, price, URL, arguments, and provenance before receiving a code.
 
@@ -26,4 +26,4 @@ The browser profile persists at `/var/lib/boop/browser-profile` and is excluded 
 
 ## Adding a toolkit
 
-Composio connections are discovered dynamically. The curated names in `server/composio.ts` improve display labels but do not grant authority. No toolkit write becomes autonomous merely because it is connected.
+Composio connections are discovered dynamically, then intersected with the maintenance policy. The curated names in `server/composio.ts` improve display labels but do not grant authority. No toolkit or tool becomes available merely because it is connected.

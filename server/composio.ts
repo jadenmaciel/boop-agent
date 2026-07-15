@@ -50,6 +50,46 @@ export const CURATED_TOOLKITS: CuratedToolkit[] = [
 
 const DISPLAY_NAME_BY_SLUG = new Map(CURATED_TOOLKITS.map((t) => [t.slug, t.displayName]));
 
+interface AllowedToolkitPolicy {
+  read?: string[];
+  write?: string[];
+  scopes?: string[];
+}
+
+function allowedToolkitPolicies(): Record<string, AllowedToolkitPolicy> {
+  const raw = process.env.BOOP_COMPOSIO_POLICY_JSON?.trim();
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, AllowedToolkitPolicy>
+      : {};
+  } catch {
+    throw new Error("BOOP_COMPOSIO_POLICY_JSON must be valid JSON.");
+  }
+}
+
+export function allowedComposioToolkits(): Set<string> {
+  return new Set(Object.keys(allowedToolkitPolicies()));
+}
+
+export function composioToolEffect(
+  toolkit: string,
+  toolName: string,
+): "read" | "write" | null {
+  const policy = allowedToolkitPolicies()[toolkit];
+  if (policy?.read?.includes(toolName)) return "read";
+  if (policy?.write?.includes(toolName)) return "write";
+  return null;
+}
+
+export function validateComposioConnectionRequest(toolkit: string, scopes: string[]): void {
+  const allowed = allowedToolkitPolicies()[toolkit]?.scopes ?? [];
+  if (allowed.length === 0 || scopes.some((scope) => !allowed.includes(scope))) {
+    throw new Error(`Toolkit or scopes are not approved for ${toolkit}.`);
+  }
+}
+
 let singleton: Composio | null = null;
 
 export function getComposio(): Composio | null {
@@ -583,8 +623,10 @@ export function buildComposioIntegrationModule(slug: string): IntegrationModule 
         )
         .join(", ");
 
-      return rawTools.map((rawTool: any): RuntimeTool => {
+      return rawTools.flatMap((rawTool: any): RuntimeTool[] => {
         const toolName = String(rawTool.slug ?? rawTool.name);
+        const effect = composioToolEffect(slug, toolName);
+        if (!effect) return [];
         const baseSchema =
           rawTool.inputParameters ??
           rawTool.parameters ??
@@ -606,10 +648,11 @@ export function buildComposioIntegrationModule(slug: string): IntegrationModule 
           .filter(Boolean)
           .join("\n\n");
 
-        return {
+        return [{
           namespace: slug,
           name: toolName,
           description,
+          effect,
           inputSchema: {},
           jsonSchema,
           handle: async (args: Record<string, unknown>) => {
@@ -647,7 +690,7 @@ export function buildComposioIntegrationModule(slug: string): IntegrationModule 
               return runtimeText(formatError(err), false);
             }
           },
-        };
+        }];
       });
     },
   };

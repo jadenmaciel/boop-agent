@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { request } from "node:https";
 import { join } from "node:path";
-import { assertPublicDownloadUrl } from "./browser/url-policy.js";
+import { Readable } from "node:stream";
+import {
+  assertPublicDownloadUrl,
+  resolvePublicDownloadTarget,
+  type PublicDownloadTarget,
+} from "./browser/url-policy.js";
 import { MAX_IMAGE_BYTES, validateImageHeader, type ImageMediaType } from "./images/mime.js";
 import { StateStore } from "./state.js";
 
@@ -17,7 +23,7 @@ export class MediaStore {
   constructor(
     private readonly state: StateStore,
     private readonly root = process.env.BOOP_MEDIA_ROOT ?? "/var/lib/boop/media",
-    private readonly fetcher: typeof fetch = fetch,
+    private readonly fetcher?: typeof fetch,
     private readonly validateUrl: (url: string) => Promise<string> = assertPublicDownloadUrl,
   ) {
     mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -25,9 +31,7 @@ export class MediaStore {
   }
 
   async ingest(url: string, now = Date.now()): Promise<StoredMedia> {
-    const safeUrl = await this.validateUrl(url);
-    if (!safeUrl.startsWith("https://")) throw new Error("Inbound media must use HTTPS.");
-    const response = await this.fetcher(safeUrl, { signal: AbortSignal.timeout(15_000) });
+    const response = await this.fetchWithValidatedRedirects(url);
     if (!response.ok) throw new Error(`Media download returned HTTP ${response.status}.`);
     const lengthHeader = response.headers.get("content-length");
     const header = validateImageHeader({
@@ -67,6 +71,28 @@ export class MediaStore {
     return { id, mediaType: header.mediaType, data };
   }
 
+  private async fetchWithValidatedRedirects(input: string): Promise<Response> {
+    let current = input;
+    for (let redirects = 0; redirects <= 5; redirects += 1) {
+      const target = this.fetcher ? null : await resolvePublicDownloadTarget(current);
+      const safeUrl = target?.url ?? await this.validateUrl(current);
+      if (!safeUrl.startsWith("https://")) throw new Error("Inbound media must use HTTPS.");
+      const response = this.fetcher
+        ? await this.fetcher(safeUrl, {
+            redirect: "manual",
+            signal: AbortSignal.timeout(15_000),
+          })
+        : await pinnedHttpsResponse(target!);
+      if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+      const location = response.headers.get("location");
+      if (!location) throw new Error("Media redirect has no Location header.");
+      if (redirects === 5) throw new Error("Media download exceeded five redirects.");
+      await response.body?.cancel();
+      current = new URL(location, safeUrl).toString();
+    }
+    throw new Error("Media download exceeded five redirects.");
+  }
+
   read(id: string, mediaType: ImageMediaType): StoredMedia {
     return { id, mediaType, data: readFileSync(join(this.root, id)) };
   }
@@ -85,6 +111,34 @@ export class MediaStore {
     }
     return expired.length;
   }
+}
+
+function pinnedHttpsResponse(target: PublicDownloadTarget): Promise<Response> {
+  const url = new URL(target.url);
+  return new Promise((resolve, reject) => {
+    const req = request({
+      hostname: target.address,
+      port: url.port || 443,
+      path: `${url.pathname}${url.search}`,
+      method: "GET",
+      servername: url.hostname,
+      headers: { host: url.host },
+      timeout: 15_000,
+    }, (response) => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(response.headers)) {
+        if (Array.isArray(value)) for (const item of value) headers.append(name, item);
+        else if (value !== undefined) headers.set(name, value);
+      }
+      resolve(new Response(Readable.toWeb(response) as ReadableStream, {
+        status: response.statusCode ?? 500,
+        headers,
+      }));
+    });
+    req.once("timeout", () => req.destroy(new Error("Media download timed out.")));
+    req.once("error", reject);
+    req.end();
+  });
 }
 
 function hasExpectedMagic(data: Buffer, mediaType: ImageMediaType): boolean {

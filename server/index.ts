@@ -1,7 +1,7 @@
 import "./env-setup.js";
 import { createServer } from "node:http";
 import { createApp, requiredOwnerNumber } from "./app.js";
-import { startAutomationLoop } from "./automation-runner.js";
+import { nextRunFor, startAutomationLoop } from "./automation-runner.js";
 import { closeLocalBrowser } from "./browser/launcher.js";
 import { setBrowserAllowedDomains } from "./browser/url-policy.js";
 import { ConfirmationService } from "./confirmations.js";
@@ -28,6 +28,8 @@ const agent = new PersonalAgent(state, confirmations, vault, media);
 const messages = new OwnerMessageService(state, confirmations, agent, ownerNumber);
 const inbound = new InboundDeliveryService(state, messages, media, ownerNumber);
 state.requeueInboundMessages();
+state.markInterruptedPendingActionsUnknown();
+state.recoverInterruptedAutomationRuns(nextRunFor);
 const app = createApp({
   state,
   confirmations,
@@ -38,7 +40,7 @@ const app = createApp({
   inbound,
 });
 const server = createServer(app);
-const stopAutomations = startAutomationLoop(state, agent);
+const stopAutomations = startAutomationLoop(state, messages);
 const mediaCleanup = setInterval(() => media.cleanup(), 60 * 60 * 1_000);
 mediaCleanup.unref();
 const operationalRetention = setInterval(

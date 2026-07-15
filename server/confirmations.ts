@@ -1,5 +1,5 @@
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { StateStore, type ActionRiskTier } from "./state.js";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { StateStore, type ActionRiskTier, type PendingActionRecord } from "./state.js";
 
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const CODE_LENGTH = 6;
@@ -48,15 +48,27 @@ export class ConfirmationService {
     const payloadHash = createHash("sha256").update(canonicalPayload).digest("hex");
     const id = randomUUID();
     const expiresAt = now + ONE_HOUR_MS;
+    const codeHash = this.hashCode(code);
+    const provenance = canonicalJson(input.provenance);
+    const bindingMac = this.bindingMac({
+      id,
+      codeHash,
+      canonicalPayload,
+      payloadHash,
+      provenance,
+      riskTier: input.riskTier,
+      expiresAt,
+    });
     this.store.createPendingAction({
       id,
       kind: input.kind,
       summary: input.summary,
       canonicalPayload,
       payloadHash,
-      provenance: canonicalJson(input.provenance),
+      provenance,
       riskTier: input.riskTier,
-      codeHash: this.hashCode(code),
+      codeHash,
+      bindingMac,
       expiresAt,
       now,
     });
@@ -96,6 +108,43 @@ export class ConfirmationService {
   private hashCode(code: string): string {
     return createHmac("sha256", this.options.hmacSecret).update(code).digest("hex");
   }
+
+  verifyAction(action: PendingActionRecord): boolean {
+    const stored = Buffer.from(action.bindingMac, "hex");
+    const expected = Buffer.from(this.bindingMac(action), "hex");
+    return stored.length === expected.length && timingSafeEqual(stored, expected);
+  }
+
+  private bindingMac(action: Pick<
+    PendingActionRecord,
+    "id" | "codeHash" | "canonicalPayload" | "payloadHash" | "provenance" | "riskTier" | "expiresAt"
+  >): string {
+    const material = canonicalJson({
+      id: action.id,
+      codeHash: action.codeHash,
+      canonicalPayload: action.canonicalPayload,
+      payloadHash: action.payloadHash,
+      provenance: action.provenance,
+      riskTier: action.riskTier,
+      expiresAt: action.expiresAt,
+    });
+    return createHmac("sha256", this.options.hmacSecret).update(material).digest("hex");
+  }
+}
+
+export function redactConfirmationCodeForTranscript(text: string): string {
+  const pattern = `[${CODE_ALPHABET}]{${CODE_LENGTH}}`;
+  if (looksLikeConfirmationCode(text)) {
+    return "[confirmation code submitted]";
+  }
+  return text
+    .replace(new RegExp(`Reply with ${pattern} within one hour\\.`, "gi"),
+      "Reply with [confirmation code] within one hour.")
+    .replace(new RegExp(`boop approve ${pattern}`, "gi"), "boop approve [confirmation code]");
+}
+
+export function looksLikeConfirmationCode(text: string): boolean {
+  return new RegExp(`^\\s*[${CODE_ALPHABET}]{${CODE_LENGTH}}\\s*$`, "i").test(text);
 }
 
 export function canonicalJson(value: unknown): string {

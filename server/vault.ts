@@ -301,8 +301,12 @@ export class VaultService {
   }
 
   private assertWritable(): void {
-    const guard = process.env.BOOP_READ_ONLY_FILE;
-    if (guard && existsSync(guard)) throw new Error("Vault is read-only until health checks recover.");
+    const guardDirectory = process.env.BOOP_READ_ONLY_DIR;
+    if (!guardDirectory) return;
+    if (!existsSync(guardDirectory)) throw new Error("Vault safety directory is unavailable.");
+    const locked = readdirSync(guardDirectory).some((name) =>
+      readFileSync(join(guardDirectory, name), "utf8").trim() === "1");
+    if (locked) throw new Error("Vault is read-only until health checks recover.");
   }
 }
 

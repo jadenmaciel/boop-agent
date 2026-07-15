@@ -50,9 +50,9 @@ The 25-file fuse hashes the sorted path, size, and modification-time manifest. T
 
 ## Integrations and browser
 
-Composio tools are classified fail-closed. Explicit retrieval verbs are available directly unless the name also contains a write verb. All other tools are catalogued for `propose_external_action`, then invoked only after confirmation.
+Composio tools and OAuth scopes are classified by the maintenance-owned allowlist. Declared reads are available directly, declared writes are catalogued for `propose_external_action`, and unknown tools fail closed. Owner automations receive only their stored integration allowlist and share the same serialized owner queue.
 
-Patchright checks the scheme, domain allowlist, DNS answers, and public-address status before navigation and on every routed request. Login handoff writes a bounded request file consumed by a systemd path unit; VNC binds only to the VPS Tailscale address and expires after 30 minutes.
+Patchright accepts exact approved hostnames only. At browser launch it resolves each hostname to public addresses, pins Chromium to those results, blocks all other DNS, and rechecks every routed request. Changing the allowlist closes the browser so the next launch repins it. Login handoff writes a bounded request file consumed by a systemd path unit; VNC binds only to the VPS Tailscale address and expires after 30 minutes.
 
 ## Operations boundary
 
