@@ -1,0 +1,206 @@
+README.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 1,3,5,7,9-14,16,18-27,29,31,34-38,41,43,45,47-51,53,55,57,59
+server/browser/launcher.ts
+  s_df1b799a1b74d3::t_85f995f5942fd5 6,306,349-355
+  s_6dc9170ef9af17::t_3138f39d251432 356
+server/state-instance.ts
+  s_df1b799a1b74d3::t_086b0b136dd24e 1,3,5-7
+server/app.ts
+  s_df1b799a1b74d3::t_cef15d8fe34738 5,17,27-28
+  s_df1b799a1b74d3::t_366c3fa885146e 45-48
+  s_df1b799a1b74d3::t_61a87dfbc33110 1-4,6-8,10-16,18-26,29-33,35-37,39-43,53-60
+  s_df1b799a1b74d3::t_5b5356fb85b842 50-51
+CONTRIBUTING.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 3,5-9,11,13,15
+server/runtimes/types.ts
+  s_df1b799a1b74d3::t_07ff54ebd07c83 4
+test/media-store.test.ts
+  s_df1b799a1b74d3::t_77e36f94cb20fb 1-32
+scripts/preflight.mjs
+  s_df1b799a1b74d3::t_ada9d910af045d 2-6,8-10,12-45,48
+server/automation-runner.ts
+  s_df1b799a1b74d3::t_61a87dfbc33110 2,4,6-21,24-32,34-42,44-46,48-54,58-62
+.npmrc
+  s_df1b799a1b74d3::t_aff664030a9346 1
+.env.example
+  s_df1b799a1b74d3::t_ada9d910af045d 1-6,10-11,13,18-25
+server/confirmations.ts
+  s_df1b799a1b74d3::t_107624c3eec8bc 75
+  s_df1b799a1b74d3::t_253be21ee87c02 1-2,4-6,8-10,13-19,22-27,30-31,33-39,41-45,47-74,76,79-80,83-85,87-94,96-99,101-107,109-113,116-118
+server/browser/tools.ts
+  s_df1b799a1b74d3::t_35cc0a367866d1 1,128,132-133,135,146-154
+server/browser/url-policy.ts
+  s_df1b799a1b74d3::t_71afa70ec2dfae 5,7-9,52-53,59,61-62
+  s_df1b799a1b74d3::t_86fd8a92c265d5 15-16,18-23,25-29,39
+  s_df1b799a1b74d3::t_85f995f5942fd5 1-2,4,11-14,30-38,40-45,47-49,51,54,56-58,63,65-67,69-93
+  s_df1b799a1b74d3::t_c1cb31ebd3c307 55
+tsconfig.json
+  s_df1b799a1b74d3::t_c5f0b99c44447b 16,18-19
+package.json
+  s_df1b799a1b74d3::t_034f742f49f0aa 13
+  s_df1b799a1b74d3::t_c5f0b99c44447b 3,5,8-11,14,19,24,35,42
+server/personal-agent.ts
+  s_df1b799a1b74d3::t_2efd0ab0c4be05 323-349,354-355
+  s_df1b799a1b74d3::t_92f26a1296ac26 89,109-111,176-179,350-353
+  s_df1b799a1b74d3::t_0b85c3c9c12d88 6,95,102,140,156-168,234-238,240,471-486,488
+  s_df1b799a1b74d3::t_e740910a0ebe8a 43,48,51,53,55-58,62,67-69,71-72,76
+  s_df1b799a1b74d3::t_71afa70ec2dfae 5,7,104-108,112-116,118,120,122-128,181,211,216-218,249-307,309-310
+  s_df1b799a1b74d3::t_9030b5914d5c87 30-42,44-47,49-50,52,54,59-61,63-66,70,73-75,77-78,581,583-585,588-591,596,598-602,606-609,612
+  s_df1b799a1b74d3::t_dbc7f74038a70e 204-210,395-420
+  s_df1b799a1b74d3::t_52208e25510b5e 98-101,103,173
+  s_df1b799a1b74d3::t_af326dc0e406a5 212-215
+  s_df1b799a1b74d3::t_f5988f048a83f1 2-4,8-14,16-29,79-88,90-94,96-97,129-136,138-139,141-155,169-172,175,182-203,219-220,222-230,232,241-248,311-322,356-393,422-438,443-456,458-470,489,491-546,548-570,572-573,575-579,582,586,592-595,615-620
+  s_df1b799a1b74d3::t_ecfb3c2d6e9b29 603-605
+  s_df1b799a1b74d3::t_47121419d24b09 1,239,308,394,421,439-442,457
+server/owner-queue.ts
+  s_df1b799a1b74d3::t_52208e25510b5e 1-5,7-10,12-15,17,19-24,26-28,30-51
+server/runtimes/index.ts
+  s_df1b799a1b74d3::t_07ff54ebd07c83 14
+server/runtime-config.ts
+  s_df1b799a1b74d3::t_0d8222d735ce1c 3-4,7,9-10,24-30,43-48,50-55,58-60,63-65,68-70,78,80-81,90-92,94-104,106-110,114-118
+test/sendblue-owner-auth.test.ts
+  s_df1b799a1b74d3::t_cb0ca8a2979418 25-36,39
+  s_df1b799a1b74d3::t_fda2a4847abfbd 1-3,5-19,21-22
+server/media-store.ts
+  s_df1b799a1b74d3::t_e3496d9e09ee84 1-3,5-13,16-20,22-24,27-48,50,52-68,70-74,78,80-84,86-88,90-96
+  s_df1b799a1b74d3::t_86fd8a92c265d5 4,21
+  s_df1b799a1b74d3::t_797e1531ef051f 75-77
+server/runtimes/codex-app-server.ts
+  s_df1b799a1b74d3::t_099cb32b0f3d7b 137,141-142
+server/state.ts
+  s_df1b799a1b74d3::t_600717ecf890dd 1,3-5,62-76,84-87,203,354,571-575,801,803-805
+  s_df1b799a1b74d3::t_cef15d8fe34738 54-61,189-202,595-597,599-629,631-632,634-638,640-649,651-666,668,670-678,680-686,689-695,833-840,871,874-880
+  s_df1b799a1b74d3::t_086b0b136dd24e 79-83,698-703,705-711
+  s_df1b799a1b74d3::t_450053ec2ed7e2 578-586,588-594,630,667,696
+  s_df1b799a1b74d3::t_797e1531ef051f 560-565
+  s_df1b799a1b74d3::t_2efd0ab0c4be05 397-406,408-415,417-422,424-427
+  s_df1b799a1b74d3::t_26c071ff362cce 2,41-53,116-151,361,363-377,379-395,429-460,479-507,509-531,821-832,857,860-870
+  s_df1b799a1b74d3::t_253be21ee87c02 16-40,97-115,256-288,290-320,322-332,334-345,348-353,356-360,569,808-820,841-856,881
+  s_df1b799a1b74d3::t_bbfc47f6ffa478 77-78,159-177,180-188,204,206-213,712,714-739,741-754,756-760,763-775,795-796,798-800
+  s_df1b799a1b74d3::t_f7be293dda153c 6-15,88-96,214,216-228,230-253
+  s_df1b799a1b74d3::t_b4b7b695bdd1c2 152-158,178-179,532,534-548,550-553,555-557,567-568
+  s_df1b799a1b74d3::t_0350789acc654a 462-466,469-473,475-477
+  s_df1b799a1b74d3::t_91614d23ab2cca 761-762,776-794
+test/local-browser-launcher.test.ts
+  s_df1b799a1b74d3::t_485ecc29b7b5a4 32,59-60
+  s_b2058a46f69079::t_9e7eff02d4ce9d 61-62
+test/personal-agent-policy.test.ts
+  s_df1b799a1b74d3::t_ecfb3c2d6e9b29 29
+  s_df1b799a1b74d3::t_e740910a0ebe8a 23-24
+  s_df1b799a1b74d3::t_9030b5914d5c87 2,4,8-11
+  s_df1b799a1b74d3::t_77e36f94cb20fb 3,5,7,12,14-17,20-22,27-28,30
+scripts/sendblue-webhook.mjs
+  s_df1b799a1b74d3::t_629af5a5b2b385 112-114,121-122,124
+  s_df1b799a1b74d3::t_4c512bf943dcd8 18
+server/composio.ts
+  s_df1b799a1b74d3::t_843b2f6f5c3991 53,55,59
+  s_df1b799a1b74d3::t_af326dc0e406a5 495,509-519,525-527
+test/confirmations.test.ts
+  s_df1b799a1b74d3::t_16b83d9139d4c2 1-6,8,10-11,14-23,25-35,37-49,51-52
+server/inbound-deliveries.ts
+  s_df1b799a1b74d3::t_87e2ee20982fe0 17-19
+  s_df1b799a1b74d3::t_cef15d8fe34738 1-4,6-12,14-15,24-26,28-51,53
+scripts/boop.mjs
+  s_df1b799a1b74d3::t_c5f0b99c44447b 1,3-5,9-18,21
+AGENTS.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 1,3,5-11
+test/state.test.ts
+  s_df1b799a1b74d3::t_cb0ca8a2979418 29-36
+  s_df1b799a1b74d3::t_33a1f5675a580b 56-60,62-67
+  s_df1b799a1b74d3::t_e38356e7ea3a2e 70-80,82-86,89-98,151
+  s_df1b799a1b74d3::t_77e36f94cb20fb 1,99,117-122,124-150
+  s_df1b799a1b74d3::t_fb03376643fec3 123
+  s_df1b799a1b74d3::t_66cdf1d05b3c4e 102-114
+  s_df1b799a1b74d3::t_dfe44b5a8069d7 4-5,7-16,19-24,26
+  s_df1b799a1b74d3::t_128301d1bf2754 39-53
+server/vault.ts
+  s_df1b799a1b74d3::t_10b5764b7112e2 1,3,5,8,10-13,16,18-21,23-25,27-31,34-37,41-42,48-50,52-57,60,75-80,82,84-88,90-95,99-115,118-119,122-132,135,138-147,197-199,202-221,245,247-250,252-266,268-282,284-295,297-301,303-306,309-312
+  s_df1b799a1b74d3::t_183b8230034f14 22,61,63,65-70,72,74,83
+  s_df1b799a1b74d3::t_ffe45dd3d60a73 235-236
+  s_df1b799a1b74d3::t_2b9ebd52dc3181 134,149,193,231,233-234,237-244
+  s_df1b799a1b74d3::t_dbc7f74038a70e 17,26,44-47,62,71,133,148,152-165,167-192,194,224-230
+pnpm-workspace.yaml
+  s_df1b799a1b74d3::t_aff664030a9346 1-2
+server/index.ts
+  s_df1b799a1b74d3::t_cef15d8fe34738 10,29,38
+  s_df1b799a1b74d3::t_e5732058823a29 55
+  s_df1b799a1b74d3::t_87e2ee20982fe0 49-50,56,68
+  s_df1b799a1b74d3::t_6071e1c6766a78 3-4,7-8,11-15,21-24,28,31-37,39-41,51-54,58,60-65,69-72,75,78-82
+  s_df1b799a1b74d3::t_71afa70ec2dfae 6,16-20
+  s_df1b799a1b74d3::t_366c3fa885146e 44-48,67
+  s_df1b799a1b74d3::t_dbc7f74038a70e 25
+  s_df1b799a1b74d3::t_d95d9899ba97c5 30
+  s_df1b799a1b74d3::t_0b85c3c9c12d88 9,26-27,42-43,66
+test/vault.test.ts
+  s_df1b799a1b74d3::t_4cad12ce07c7fe 1,41-42,48-49
+  s_df1b799a1b74d3::t_184e8f828baba4 2-5,7,9,11-12,14-18,20-31,33-38,40,43-47
+  s_df1b799a1b74d3::t_68070ace01547f 10
+  s_df1b799a1b74d3::t_85e5e95013f8c2 52-55,57-60
+server/sendblue.ts
+  s_df1b799a1b74d3::t_ec4dd90a7a772e 6-22,24-26,30-55,62-64,66-81,84-90,101-107,114,116-118,120-122,124,128-134,137-145,148-152,154,157-160
+  s_df1b799a1b74d3::t_cef15d8fe34738 27-29,56-57,65
+  s_df1b799a1b74d3::t_450053ec2ed7e2 58-61
+  s_df1b799a1b74d3::t_87e2ee20982fe0 82-83
+test/local-access.test.ts
+  s_df1b799a1b74d3::t_485ecc29b7b5a4 91-92,96
+INTEGRATIONS.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 3,5,7,9,11,13,15,17,19,21,23,25,27,29
+server/integrations/browser-loader.ts
+  s_df1b799a1b74d3::t_843b2f6f5c3991 1
+test/browser-url-policy.test.ts
+  s_df1b799a1b74d3::t_c1cb31ebd3c307 1,26,28-30
+  s_df1b799a1b74d3::t_e3ea5aeb3df1b1 2,16-23,27
+  s_df1b799a1b74d3::t_6aed08d42bb6b2 4,7,9-13
+  s_df1b799a1b74d3::t_374d3e4b8ef4ec 5
+server/owner-messages.ts
+  s_df1b799a1b74d3::t_0b85c3c9c12d88 4,18-19,23,37
+  s_df1b799a1b74d3::t_52208e25510b5e 1-3,5-6,8-9,11-16,20-22,24-36,38-49
+ARCHITECTURE.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 3-23,26,28,30,32,36,38-40,43,45,47,49,51,53,55,57,59
+  s_df1b799a1b74d3::t_4875c3c96c957e 34
+scripts/sendblue-sync.mjs
+  s_df1b799a1b74d3::t_629af5a5b2b385 83-84,94
+server/local-access.ts
+  s_df1b799a1b74d3::t_485ecc29b7b5a4 129
+CLAUDE.md
+  s_df1b799a1b74d3::t_a68949a68c72ea 1,3
+CHANGELOG.md
+  s_df1b799a1b74d3::t_70941c89fcb94b 3-16
+server/integrations/registry.ts
+  s_df1b799a1b74d3::t_843b2f6f5c3991 8
+  s_df1b799a1b74d3::t_71afa70ec2dfae 49
+pnpm-lock.yaml
+  s_df1b799a1b74d3::t_628d9289220095 1-2457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "46abf3b07123e6e8f9e39d1d14d34f3338bf736f",
+  "prompts": {},
+  "sessions": {
+    "s_6dc9170ef9af17": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66ff-4a37-75a3-a397-c232fb4b3dcb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_b2058a46f69079": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f61c6-9111-74e3-9ae2-bb76d5b6b3d4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_df1b799a1b74d3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66bd-7362-7880-bfd7-5ee734db2b64",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    }
+  }
+}
