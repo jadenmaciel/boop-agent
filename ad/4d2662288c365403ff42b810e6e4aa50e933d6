@@ -1,0 +1,19 @@
+pnpm-workspace.yaml
+  s_4e6618efed9198::t_da1c9abbade6e1 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ad4d2662288c365403ff42b810e6e4aa50e933d6",
+  "prompts": {},
+  "sessions": {
+    "s_4e6618efed9198": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6771-42ed-7ed1-b609-d34102bfce9c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    }
+  }
+}
