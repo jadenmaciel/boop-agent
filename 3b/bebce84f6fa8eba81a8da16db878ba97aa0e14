@@ -1,0 +1,136 @@
+ARCHITECTURE.md
+  s_df1b799a1b74d3::t_1279a51bb9a401 53,55
+test/local-browser-launcher.test.ts
+  s_df1b799a1b74d3::t_967b848af2aa2c 61
+README.md
+  s_df1b799a1b74d3::t_1e93fac9f8bda5 25
+server/vault.ts
+  s_df1b799a1b74d3::t_53bf23ba1f22e7 304-309
+test/owner-queue.test.ts
+  s_df1b799a1b74d3::t_39da24efbdae1a 1-20
+test/composio-policy.test.ts
+  s_df1b799a1b74d3::t_228a8570c28d9a 1-32
+test/personal-agent-policy.test.ts
+  s_df1b799a1b74d3::t_dc6dad79051601 7-8,12-13,18-19,23,33-36
+server/index.ts
+  s_df1b799a1b74d3::t_9869bea1e3077d 31
+  s_df1b799a1b74d3::t_723bea5a48e33b 4,32,43
+INTEGRATIONS.md
+  s_df1b799a1b74d3::t_1279a51bb9a401 7,13,29
+server/runtimes/types.ts
+  s_df1b799a1b74d3::t_aa935807aa40f7 22
+server/browser/url-policy.ts
+  s_df1b799a1b74d3::t_efbeed3f614a1f 15-17,27
+  s_df1b799a1b74d3::t_cf176b638fd206 31-32
+  s_df1b799a1b74d3::t_0be6e5936cd3a1 5-8,50-70,111
+  s_df1b799a1b74d3::t_cfcef531f11105 18-26,28-30,33-38,100-102,107-110
+  s_7c37743979df8f::t_2b05276ab3f9e0 112
+test/state.test.ts
+  s_df1b799a1b74d3::t_0f883d4e8145ac 105-124,181-196,202
+  s_df1b799a1b74d3::t_38999737cb0ef6 56-71
+  s_df1b799a1b74d3::t_967b848af2aa2c 159
+test/media-store.test.ts
+  s_df1b799a1b74d3::t_61c91ced7de6f0 4,33-50
+  s_ba1f48a0cab20f::t_96d14099e61af0 51-52
+server/media-store.ts
+  s_df1b799a1b74d3::t_541f4dff81085b 34,74-76,79,86-89,91-93
+  s_df1b799a1b74d3::t_99b2b51bba171a 3,5-10,26,77-78,80-85,90,116-141
+  s_df1b799a1b74d3::t_0492d44f02351e 94-95
+  s_df1b799a1b74d3::t_e4d9d9831e1cdc 142-143
+server/runtime-config.ts
+  s_df1b799a1b74d3::t_e8fc54617495ce 36-38
+server/confirmations.ts
+  s_df1b799a1b74d3::t_c681d1ef001e52 1,113-115,132-136,138-143
+  s_df1b799a1b74d3::t_8270ebab32b5d1 2,51-61,68,70-71,111-112,116-131
+  s_df1b799a1b74d3::t_204a088d4f6d4b 137,144-147
+server/composio.ts
+  s_df1b799a1b74d3::t_6642c4ddbf6c47 53-92,626,628-629,651,655,693
+server/integrations/composio-loader.ts
+  s_df1b799a1b74d3::t_6642c4ddbf6c47 3,16,23
+server/inbound-deliveries.ts
+  s_df1b799a1b74d3::t_6c2ed22b27d502 7-8,17-19,25-38,40,42-43,48
+  s_df1b799a1b74d3::t_55c326a46ab1b2 20-24,56-57
+.env.example
+  s_df1b799a1b74d3::t_14c5e6026bc6e4 19
+  s_df1b799a1b74d3::t_53bf23ba1f22e7 6
+test/browser-url-policy.test.ts
+  s_df1b799a1b74d3::t_fd27409383c7dd 5,46-56
+  s_df1b799a1b74d3::t_967b848af2aa2c 22
+  s_df1b799a1b74d3::t_efbeed3f614a1f 2-4,6-7,37-45
+tsconfig.json
+  s_df1b799a1b74d3::t_2fbbb548f742c2 15
+server/automation-runner.ts
+  s_df1b799a1b74d3::t_723bea5a48e33b 2,8,13,26,34,55
+server/browser/launcher.ts
+  s_df1b799a1b74d3::t_e8fc54617495ce 6,187,194,305-306,331
+server/state.ts
+  s_df1b799a1b74d3::t_c681d1ef001e52 208-212
+  s_df1b799a1b74d3::t_55c326a46ab1b2 365,772-780
+  s_df1b799a1b74d3::t_0c0a90bf1043fe 33-34,206-207,213,275,283-284,295,339,349,353
+  s_df1b799a1b74d3::t_0b165f26cb28f9 367-380
+  s_df1b799a1b74d3::t_74561ca4f7c67b 581-607
+  s_df1b799a1b74d3::t_b8cbe1e15e5792 846,871-876,884
+  s_df1b799a1b74d3::t_4d900d2e8e4817 906-907,944-945
+  s_df1b799a1b74d3::t_9869bea1e3077d 325-335,340-345,357-364
+  s_df1b799a1b74d3::t_a0b82ee05155f0 366
+server/owner-messages.ts
+  s_df1b799a1b74d3::t_204a088d4f6d4b 1-5,51-52,54-55
+  s_df1b799a1b74d3::t_0b165f26cb28f9 71-80
+  s_df1b799a1b74d3::t_55c326a46ab1b2 37-38
+  s_df1b799a1b74d3::t_c681d1ef001e52 29-33
+  s_df1b799a1b74d3::t_85e82a6ce02abf 11,39-40,46-48,50,56-61,69-70,81-85,89-100
+  s_df1b799a1b74d3::t_b15bd78900abcc 101
+test/confirmations.test.ts
+  s_df1b799a1b74d3::t_92ba30e3ce4e84 50-52,58-73
+  s_df1b799a1b74d3::t_5b63aefb386bc1 5-8,75-85
+  s_df1b799a1b74d3::t_e468062e147a54 74,86-107
+test/local-browser-security.test.ts
+  s_df1b799a1b74d3::t_967b848af2aa2c 23
+test/vault.test.ts
+  s_df1b799a1b74d3::t_17666cb074c0b5 11,63-73
+  s_df1b799a1b74d3::t_34c7416ed866d0 74
+server/owner-queue.ts
+  s_df1b799a1b74d3::t_c5845c35351cac 39-40
+server/personal-agent.ts
+  s_df1b799a1b74d3::t_118a27c696e053 288-289,291-301
+  s_df1b799a1b74d3::t_c3c921b56df1cd 15,63,68,89,91-93,97-100,156-162,168-169,171-172,191-192,198,209
+  s_df1b799a1b74d3::t_a6750e516af9ee 165,276,309-314,425-451,461,486-491
+  s_df1b799a1b74d3::t_ad0fb2d628f7ea 574-577,584,586,591-594,597-602,618-624,626-628,633-635,638-639,641,643-646,649-651,654-658
+  s_df1b799a1b74d3::t_6431e5dd4ef874 603
+  s_df1b799a1b74d3::t_954711d4641c4f 4,10-13,196,290,615
+  s_df1b799a1b74d3::t_c681d1ef001e52 5-9,146-150
+.gitignore
+  s_df1b799a1b74d3::t_c797d447a6bc67 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3bbebce84f6fa8eba81a8da16db878ba97aa0e14",
+  "prompts": {},
+  "sessions": {
+    "s_7c37743979df8f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6750-80a8-7d63-b0f8-1202b4c5472a",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_ba1f48a0cab20f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4ce940ff-faa5-4e48-9db1-33a66fb3f188",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_df1b799a1b74d3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66bd-7362-7880-bfd7-5ee734db2b64",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    }
+  }
+}
