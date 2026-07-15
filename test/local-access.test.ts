@@ -88,14 +88,12 @@ describe("local server access", () => {
     ).toBe(false);
   });
 
-  it("exposes only health and provider webhooks publicly", () => {
-    expect(isPublicServerRequest(request({ url: "/health?source=desktop" }))).toBe(true);
+  it("exposes only the Sendblue webhook publicly", () => {
+    expect(isPublicServerRequest(request({ url: "/health?source=desktop" }))).toBe(false);
     expect(
       isPublicServerRequest(request({ method: "POST", url: "/sendblue/webhook/" })),
     ).toBe(true);
-    expect(
-      isPublicServerRequest(request({ method: "POST", url: "/composio/webhook" })),
-    ).toBe(true);
+    expect(isPublicServerRequest(request({ method: "POST", url: "/composio/webhook" }))).toBe(false);
     expect(isPublicServerRequest(request({ method: "POST", url: "/chat" }))).toBe(false);
     expect(isPublicServerRequest(request({ url: "/runtime-config" }))).toBe(false);
     expect(isPublicServerRequest(request({ url: "/composio/toolkits" }))).toBe(false);

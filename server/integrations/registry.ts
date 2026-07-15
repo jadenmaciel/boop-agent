@@ -1,4 +1,3 @@
-import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { RuntimeTool } from "../runtimes/types.js";
 
 export interface IntegrationModule {
@@ -6,8 +5,7 @@ export interface IntegrationModule {
   description: string;
   requiredEnv?: string[];
   isEnabled?: () => Promise<boolean>;
-  createServer: (ctx: IntegrationContext) => Promise<McpSdkServerConfigWithInstance>;
-  createTools?: (ctx: IntegrationContext) => Promise<RuntimeTool[]>;
+  createTools: (ctx: IntegrationContext) => Promise<RuntimeTool[]>;
 }
 
 export interface IntegrationContext {
@@ -45,12 +43,10 @@ export async function loadIntegrations(): Promise<void> {
   await registerComposioToolkits();
   const { registerBrowserIntegration } = await import("./browser-loader.js");
   registerBrowserIntegration();
-  const { registerAppleIntegration } = await import("./apple-loader.js");
-  registerAppleIntegration();
   const loaded = [...registry.keys()];
   const enabled = (await listEnabledIntegrations()).map((i) => i.name);
   console.log(
-    `[integrations] loaded: ${loaded.join(", ") || "(none — connect a toolkit from the Debug UI's Connections tab)"}; enabled: ${enabled.join(", ") || "(none)"}`,
+    `[integrations] loaded: ${loaded.join(", ") || "(none — ask Boop to connect a toolkit)"}; enabled: ${enabled.join(", ") || "(none)"}`,
   );
 }
 
@@ -63,31 +59,6 @@ export function makeContext(conversationId?: string): IntegrationContext {
   return { conversationId };
 }
 
-export async function buildMcpServersForIntegrations(
-  names: string[],
-  conversationId?: string,
-): Promise<Record<string, McpSdkServerConfigWithInstance>> {
-  const ctx = makeContext(conversationId);
-  const out: Record<string, McpSdkServerConfigWithInstance> = {};
-  for (const name of names) {
-    const mod = registry.get(name);
-    if (!mod) {
-      console.warn(`[integrations] unknown integration: ${name}`);
-      continue;
-    }
-    if (mod.isEnabled && !(await mod.isEnabled())) {
-      console.warn(`[integrations] skipped disabled integration: ${name}`);
-      continue;
-    }
-    try {
-      out[name] = await mod.createServer(ctx);
-    } catch (err) {
-      console.error(`[integrations] failed to build ${name}`, err);
-    }
-  }
-  return out;
-}
-
 export async function buildRuntimeToolsForIntegrations(
   names: string[],
   conversationId?: string,
@@ -98,10 +69,6 @@ export async function buildRuntimeToolsForIntegrations(
     const mod = registry.get(name);
     if (!mod) {
       console.warn(`[integrations] unknown integration: ${name}`);
-      continue;
-    }
-    if (!mod.createTools) {
-      console.warn(`[integrations] ${name} does not expose runtime tools`);
       continue;
     }
     if (mod.isEnabled && !(await mod.isEnabled())) {

@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { chmodSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { homedir, platform, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { BrowserContext, Page } from "patchright";
+import { assertPublicHttpUrl } from "./url-policy.js";
 import {
   getBrowserSettings,
   type BrowserSettings,
@@ -13,14 +13,12 @@ const require = createRequire(import.meta.url);
 const SCREENSHOT_DIR = join(tmpdir(), "boop-browser-screenshots");
 const BROWSER_CLOSE_TIMEOUT_MS = 2_000;
 const BROWSER_LAUNCH_TIMEOUT_MS = 30_000;
-const BROWSER_INSTALL_TIMEOUT_MS = 5 * 60_000;
 const MAX_BROWSER_SCREENSHOTS = 20;
 type PatchrightModule = typeof import("patchright");
 
 let context: BrowserContext | null = null;
 let activePage: Page | null = null;
 let launchPromise: Promise<LaunchResult> | null = null;
-let installPromise: Promise<InstallResult> | null = null;
 let activeSignature = "";
 let launchedAt: number | null = null;
 let patchrightPromise: Promise<PatchrightModule> | null = null;
@@ -46,12 +44,6 @@ export interface BrowserStatus {
   launchedAt: number | null;
   settings: BrowserSettings;
   activeUrl: string | null;
-}
-
-export interface InstallResult {
-  ok: boolean;
-  exitCode: number | null;
-  output: string;
 }
 
 export interface LaunchOptions {
@@ -311,6 +303,7 @@ export async function launchLocalBrowser(
     const executablePath = effectiveBrowserExecutablePath(settings);
     const signature = launchSignature(settings, showUi);
     const targetUrl = normalizeUrl(options.url ?? settings.startUrl);
+    if (targetUrl !== "about:blank") await assertPublicHttpUrl(targetUrl);
 
     if (context && !options.relaunch && activeSignature === signature) {
       const page = await getUsablePage();
@@ -352,6 +345,14 @@ export async function launchLocalBrowser(
       activePage = null;
       activeSignature = "";
       launchedAt = null;
+    });
+    await context.route("**/*", async (route) => {
+      try {
+        await assertPublicHttpUrl(route.request().url());
+        await route.continue();
+      } catch {
+        await route.abort("blockedbyclient");
+      }
     });
     activeSignature = signature;
     launchedAt = Date.now();
@@ -471,55 +472,4 @@ export async function browserScreenshot(): Promise<string> {
   const path = join(SCREENSHOT_DIR, `boop-browser-${Date.now()}.png`);
   await page.screenshot({ path, fullPage: false });
   return path;
-}
-
-export async function installPatchrightChrome(): Promise<InstallResult> {
-  if (installPromise) return installPromise;
-  const command = process.platform === "win32" ? "npx.cmd" : "npx";
-  installPromise = new Promise((resolveInstall) => {
-    const child = spawn(command, ["-y", "patchright", "install", "chromium"], {
-      cwd: process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let output = "";
-    let settled = false;
-    let timeout: ReturnType<typeof setTimeout>;
-    const finish = (result: InstallResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      resolveInstall(result);
-    };
-    timeout = setTimeout(() => {
-      child.kill();
-      const detail = [
-        output.trim().slice(-4000),
-        `Install timed out after ${Math.round(BROWSER_INSTALL_TIMEOUT_MS / 1000)} seconds.`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-      finish({ ok: false, exitCode: null, output: detail });
-    }, BROWSER_INSTALL_TIMEOUT_MS);
-    child.stdout.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    child.stderr.on("data", (chunk) => {
-      output += chunk.toString();
-    });
-    child.on("error", (err) => {
-      finish({ ok: false, exitCode: null, output: err.message });
-    });
-    child.on("exit", (code) => {
-      finish({
-        ok: code === 0,
-        exitCode: code,
-        output: output.trim().slice(-4000),
-      });
-    });
-  });
-  try {
-    return await installPromise;
-  } finally {
-    installPromise = null;
-  }
 }

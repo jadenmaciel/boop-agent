@@ -1,20 +1,93 @@
 import express from "express";
-import { api } from "../convex/_generated/api.js";
-import { convex } from "./convex-client.js";
-import { handleUserMessage } from "./interaction-agent.js";
-import { broadcast } from "./broadcast.js";
-import { validateImageHeader, MAX_IMAGE_BYTES, type ImageMediaType } from "./images/mime.js";
 import { redactContactHandle, redactPhoneNumbers } from "./privacy.js";
-import { maybeHandleScriptedDemoReply } from "./scripted-demo-replies.js";
 import { verifySendblueWebhookSecret } from "./sendblue-webhook-auth.js";
 
 const API_BASE = "https://api.sendblue.com/api";
-const MAX_CHUNK = 2900;
+const MAX_CHUNK = 2_900;
 
-export function extractSendblueMediaUrls(
-  mediaUrl: unknown,
-  mediaUrls: unknown,
-): string[] {
+export interface SendblueWebhookBody {
+  content?: unknown;
+  from_number?: unknown;
+  is_outbound?: unknown;
+  message_handle?: unknown;
+  media_url?: unknown;
+  media_urls?: unknown;
+}
+
+export interface AcceptedSendblueMessage {
+  content: string;
+  fromNumber: string;
+  handle: string;
+  mediaUrls: string[];
+}
+
+export interface SendblueWebhookDeps {
+  apiSecret: string;
+  ownerNumber: string;
+  claim: (
+    message: AcceptedSendblueMessage,
+  ) => boolean | "accepted" | "duplicate" | "limited";
+}
+
+export function acceptSendblueWebhook(
+  input: { signingSecret?: string; body: SendblueWebhookBody },
+  deps: SendblueWebhookDeps,
+):
+  | { status: number; body: Record<string, unknown> }
+  | { status: 202; body: { ok: true }; message: AcceptedSendblueMessage } {
+  if (!verifySendblueWebhookSecret(input.signingSecret, deps.apiSecret)) {
+    return { status: 401, body: { error: "invalid webhook signature" } };
+  }
+  const fromNumber = typeof input.body.from_number === "string"
+    ? normalizeE164(input.body.from_number)
+    : undefined;
+  const content = typeof input.body.content === "string" ? input.body.content : "";
+  const mediaUrls = extractSendblueMediaUrls(input.body.media_url, input.body.media_urls);
+  if (input.body.is_outbound || !fromNumber || (!content && mediaUrls.length === 0)) {
+    return { status: 200, body: { ok: true, skipped: true } };
+  }
+  if (fromNumber !== normalizeE164(deps.ownerNumber)) {
+    return { status: 404, body: { error: "not found" } };
+  }
+  const handle = typeof input.body.message_handle === "string"
+    ? input.body.message_handle.trim()
+    : "";
+  if (!handle) return { status: 400, body: { error: "message handle required" } };
+  const message = { content, fromNumber, handle, mediaUrls };
+  const claim = deps.claim(message);
+  if (claim === "limited") return { status: 429, body: { error: "rate limit exceeded" } };
+  if (claim === false || claim === "duplicate") {
+    return { status: 200, body: { ok: true, deduped: true } };
+  }
+  return {
+    status: 202,
+    body: { ok: true },
+    message,
+  };
+}
+
+export function createSendblueRouter(
+  deps: SendblueWebhookDeps & {
+    handle: (message: AcceptedSendblueMessage) => Promise<void>;
+  },
+): express.Router {
+  const router = express.Router();
+  router.post("/webhook", (req, res) => {
+    const accepted = acceptSendblueWebhook(
+      { signingSecret: req.get("sb-signing-secret"), body: req.body ?? {} },
+      deps,
+    );
+    res.status(accepted.status).json(accepted.body);
+    if ("message" in accepted) {
+      void deps.handle(accepted.message).catch(() => {
+        console.error("[sendblue] authorized message handler failed; durable retry remains pending");
+      });
+    }
+  });
+  return router;
+}
+
+export function extractSendblueMediaUrls(mediaUrl: unknown, mediaUrls: unknown): string[] {
   const urls = new Set<string>();
   if (Array.isArray(mediaUrls)) {
     for (const value of mediaUrls) {
@@ -25,9 +98,45 @@ export function extractSendblueMediaUrls(
   return [...urls];
 }
 
+export async function sendImessage(toNumber: string, text: string): Promise<void> {
+  const apiKey = requiredEnv("SENDBLUE_API_KEY");
+  const apiSecret = requiredEnv("SENDBLUE_API_SECRET");
+  const fromNumber = normalizeE164(requiredEnv("SENDBLUE_FROM_NUMBER"));
+  const recipient = normalizeE164(toNumber);
+  if (!fromNumber || !recipient) throw new Error("Sendblue phone number is invalid.");
+  const headers = {
+    "Content-Type": "application/json",
+    "sb-api-key-id": apiKey,
+    "sb-api-secret-key": apiSecret,
+  };
+  const plain = redactPhoneNumbers(stripMarkdown(text));
+  for (const part of chunk(plain)) {
+    const response = await fetch(`${API_BASE}/send-message`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ number: recipient, content: part, from_number: fromNumber }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      const body = redactPhoneNumbers(await response.text().catch(() => ""));
+      throw new Error(`Sendblue returned HTTP ${response.status}: ${body.slice(0, 300)}`);
+    }
+    console.log(`[sendblue] sent ${part.length} characters to ${redactContactHandle(recipient)}`);
+  }
+}
+
+export function normalizeE164(input: string | undefined): string | undefined {
+  if (!input) return undefined;
+  const trimmed = input.trim();
+  if (/^\+[1-9]\d{7,14}$/.test(trimmed)) return trimmed;
+  if (/^\d{10}$/.test(trimmed)) return `+1${trimmed}`;
+  if (/^[1-9]\d{10,14}$/.test(trimmed)) return `+${trimmed}`;
+  return undefined;
+}
+
 function stripMarkdown(text: string): string {
   return text
-    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?|```/g, ""))
+    .replace(/```[\s\S]*?```/g, (block) => block.replace(/```\w*\n?|```/g, ""))
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
@@ -36,282 +145,17 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
-function chunk(text: string, size = MAX_CHUNK): string[] {
-  if (text.length <= size) return [text];
-  const out: string[] = [];
-  let buf = "";
-  for (const line of text.split(/\n/)) {
-    if ((buf + "\n" + line).length > size) {
-      if (buf) out.push(buf);
-      buf = line;
-    } else {
-      buf = buf ? buf + "\n" + line : line;
-    }
+function chunk(text: string): string[] {
+  if (text.length <= MAX_CHUNK) return [text];
+  const parts: string[] = [];
+  for (let offset = 0; offset < text.length; offset += MAX_CHUNK) {
+    parts.push(text.slice(offset, offset + MAX_CHUNK));
   }
-  if (buf) out.push(buf);
-  return out;
+  return parts;
 }
 
-function headers(): Record<string, string> | null {
-  const apiKey = process.env.SENDBLUE_API_KEY;
-  const apiSecret = process.env.SENDBLUE_API_SECRET;
-  if (!apiKey || !apiSecret) return null;
-  return {
-    "Content-Type": "application/json",
-    "sb-api-key-id": apiKey,
-    "sb-api-secret-key": apiSecret,
-  };
-}
-
-function normalizeE164(n: string | undefined): string | undefined {
-  if (!n) return undefined;
-  const trimmed = n.trim();
-  if (!trimmed) return undefined;
-  if (trimmed.startsWith("+")) return trimmed;
-  // Bare US-length numbers get a +1. Longer/shorter just get a leading +.
-  if (/^\d{10}$/.test(trimmed)) return `+1${trimmed}`;
-  if (/^\d{11,15}$/.test(trimmed)) return `+${trimmed}`;
-  return trimmed;
-}
-
-export async function sendImessage(toNumber: string, text: string): Promise<void> {
-  const h = headers();
-  if (!h) {
-    console.warn("[sendblue] missing credentials — not sending");
-    return;
-  }
-  const from = normalizeE164(process.env.SENDBLUE_FROM_NUMBER);
-  if (!from) {
-    console.error(
-      `[sendblue] SENDBLUE_FROM_NUMBER is not set. Run \`npm run sendblue:sync\` (pulls it from \`sendblue lines\`) or paste your provisioned number into .env.local, then restart \`npm run dev\`.`,
-    );
-    return;
-  }
-  // Intentional privacy guard: Boop should not deliver phone numbers back over
-  // iMessage, even if an agent includes one in its final reply.
-  const plain = redactPhoneNumbers(stripMarkdown(text));
-  for (const part of chunk(plain)) {
-    const res = await fetch(`${API_BASE}/send-message`, {
-      method: "POST",
-      headers: h,
-      body: JSON.stringify({ number: toNumber, content: part, from_number: from }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.error(
-        `[sendblue] send failed ${res.status}: ${redactPhoneNumbers(body).slice(0, 500)}`,
-      );
-      if (body.includes("missing required parameter") && body.includes("from_number")) {
-        console.error(
-          `[sendblue] → Set SENDBLUE_FROM_NUMBER in .env.local to your Sendblue-provisioned number and restart the server.`,
-        );
-      } else if (body.includes("Cannot send messages to self")) {
-        console.error(
-          `[sendblue] → SENDBLUE_FROM_NUMBER is your personal cell. It must be the Sendblue-provisioned number (the one people text TO).`,
-        );
-      } else if (body.includes("This phone number is not defined")) {
-        console.error(
-          `[sendblue] → Sendblue doesn't recognize from_number=${redactContactHandle(from)}. Run \`npm run sendblue:sync\` to pull the correct one from \`sendblue lines\`, then restart the server.`,
-        );
-      }
-    } else {
-      console.log(`[sendblue] → sent ${part.length} chars to ${redactContactHandle(toNumber)}`);
-    }
-  }
-}
-
-export async function sendTypingIndicator(toNumber: string): Promise<void> {
-  const h = headers();
-  if (!h) return;
-  const from = process.env.SENDBLUE_FROM_NUMBER;
-  try {
-    await fetch(`${API_BASE}/send-typing-indicator`, {
-      method: "POST",
-      headers: h,
-      body: JSON.stringify({ number: toNumber, from_number: from }),
-    });
-  } catch {
-    /* non-fatal */
-  }
-}
-
-export function startTypingLoop(toNumber: string): () => void {
-  sendTypingIndicator(toNumber);
-  const timer = setInterval(() => sendTypingIndicator(toNumber), 5000);
-  return () => clearInterval(timer);
-}
-
-type IngestedImage = { storageId: string; mediaType: ImageMediaType };
-
-export async function ingestSendblueImage(
-  url: string,
-): Promise<{ ok: true; image: IngestedImage } | { ok: false; reason: string }> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "GET",
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (err) {
-    return { ok: false, reason: `download failed: ${String(err)}` };
-  }
-  if (!res.ok) {
-    return { ok: false, reason: `download failed: HTTP ${res.status}` };
-  }
-  const lenHeader = res.headers.get("content-length");
-  const contentLength = lenHeader ? Number(lenHeader) : undefined;
-  const check = validateImageHeader({
-    contentType: res.headers.get("content-type") ?? undefined,
-    contentLength,
-  });
-  if (!check.ok) {
-    res.body?.cancel().catch(() => undefined);
-    return { ok: false, reason: check.reason };
-  }
-  // Stream the body so we can abort early when the running total exceeds
-  // MAX_IMAGE_BYTES — content-length is often absent on CDN/redirect
-  // responses, and `await res.arrayBuffer()` would otherwise buffer the
-  // entire payload before any cap check fires.
-  let buf: ArrayBuffer;
-  try {
-    const reader = res.body?.getReader();
-    if (!reader) return { ok: false, reason: "download failed: no body" };
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_IMAGE_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        return {
-          ok: false,
-          reason: `image too large: >${MAX_IMAGE_BYTES} bytes`,
-        };
-      }
-      chunks.push(value);
-    }
-    buf = new ArrayBuffer(total);
-    const view = new Uint8Array(buf);
-    let offset = 0;
-    for (const c of chunks) {
-      view.set(c, offset);
-      offset += c.byteLength;
-    }
-  } catch (err) {
-    return { ok: false, reason: `download failed: ${String(err)}` };
-  }
-
-  try {
-    const uploadUrl = await convex.mutation(api.messages.generateUploadUrl, {});
-    const upload = await fetch(uploadUrl, {
-      method: "POST",
-      headers: { "Content-Type": check.mediaType },
-      body: buf,
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!upload.ok) {
-      return { ok: false, reason: `upload failed: HTTP ${upload.status}` };
-    }
-    const { storageId } = (await upload.json()) as { storageId: string };
-    return { ok: true, image: { storageId, mediaType: check.mediaType } };
-  } catch (err) {
-    return { ok: false, reason: `upload failed: ${String(err)}` };
-  }
-}
-
-export function createSendblueRouter(): express.Router {
-  const router = express.Router();
-
-  router.post("/webhook", async (req, res) => {
-    if (!verifySendblueWebhookSecret(req.get("sb-signing-secret"))) {
-      res.status(401).json({ error: "invalid webhook signature" });
-      return;
-    }
-
-    const { content, from_number, is_outbound, message_handle, media_url, media_urls } =
-      req.body ?? {};
-    const rawUrls = extractSendblueMediaUrls(media_url, media_urls);
-    if (is_outbound || !from_number || (!content && rawUrls.length === 0)) {
-      res.json({ ok: true, skipped: true });
-      return;
-    }
-
-    if (message_handle) {
-      const { claimed } = await convex.mutation(api.sendblueDedup.claim, {
-        handle: message_handle,
-      });
-      if (!claimed) {
-        res.json({ ok: true, deduped: true });
-        return;
-      }
-    }
-
-    const ingestResults = await Promise.all(rawUrls.map(ingestSendblueImage));
-    const ingested: IngestedImage[] = [];
-    const ingestErrors: string[] = [];
-    for (const r of ingestResults) {
-      if (r.ok) ingested.push(r.image);
-      else ingestErrors.push(r.reason);
-    }
-
-    const conversationId = `sms:${from_number}`;
-    const turnTag = Math.random().toString(36).slice(2, 8);
-    const textForLog = typeof content === "string" ? content : "";
-    const safeTextForLog = redactPhoneNumbers(textForLog);
-    const preview = safeTextForLog.length > 100 ? safeTextForLog.slice(0, 100) + "…" : safeTextForLog;
-    console.log(`[turn ${turnTag}] ← ${redactContactHandle(from_number)}: ${JSON.stringify(preview)}`);
-    const start = Date.now();
-
-    broadcast("message_in", { conversationId, content, from_number, handle: message_handle });
-    res.json({ ok: true });
-
-    if (
-      await maybeHandleScriptedDemoReply(
-        {
-          conversationId,
-          content: textForLog,
-          fromNumber: from_number,
-          turnTag,
-        },
-        { sendImessage, sendTypingIndicator },
-      )
-    ) {
-      return;
-    }
-
-    const stopTyping = startTypingLoop(from_number);
-    try {
-      const reply = await handleUserMessage({
-        conversationId,
-        content: textForLog,
-        turnTag,
-        images: ingested,
-        mediaError: ingestErrors.length > 0 ? ingestErrors.join("; ") : undefined,
-        onThinking: (t) => broadcast("thinking", { conversationId, t }),
-      });
-      if (reply) {
-        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-        const safeReplyPreview = redactPhoneNumbers(reply);
-        const replyPreview = safeReplyPreview.length > 100 ? safeReplyPreview.slice(0, 100) + "…" : safeReplyPreview;
-        console.log(
-          `[turn ${turnTag}] → reply (${elapsed}s, ${reply.length} chars): ${JSON.stringify(replyPreview)}`,
-        );
-        await sendImessage(from_number, reply);
-        await convex.mutation(api.messages.send, {
-          conversationId,
-          role: "assistant",
-          content: reply,
-        });
-      } else {
-        console.log(`[turn ${turnTag}] → (no reply)`);
-      }
-    } catch (err) {
-      console.error(`[turn ${turnTag}] handler error`, err);
-    } finally {
-      stopTyping();
-    }
-  });
-
-  return router;
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required.`);
+  return value;
 }

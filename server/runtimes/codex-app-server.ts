@@ -134,18 +134,12 @@ function spawnCodexAppServer(): {
   };
 }
 
-function codexConfigForMode(mode: RuntimeRunRequest["mode"]): ThreadStartParams["config"] {
-  if (mode === "execution") {
-    return { web_search: "live" };
-  }
+function codexConfigForMode(_mode: RuntimeRunRequest["mode"]): ThreadStartParams["config"] {
   return { web_search: "disabled" };
 }
 
-function codexSandboxForMode(mode: RuntimeRunRequest["mode"]): SandboxPolicy {
-  if (mode === "dispatcher" || mode === "background") {
-    return { type: "readOnly", networkAccess: false };
-  }
-  return { type: "readOnly", networkAccess: true };
+function codexSandboxForMode(_mode: RuntimeRunRequest["mode"]): SandboxPolicy {
+  return { type: "readOnly", networkAccess: false };
 }
 
 function codexReasoningEffort(

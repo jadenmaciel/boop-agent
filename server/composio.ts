@@ -1,7 +1,5 @@
 import { Composio } from "@composio/core";
 import { Composio as ComposioApiClient } from "@composio/client";
-import { ClaudeAgentSDKProvider } from "@composio/claude-agent-sdk";
-import { createSdkMcpServer, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type { IntegrationModule } from "./integrations/registry.js";
 import { formatError } from "./error-format.js";
 import { runtimeText, type RuntimeTool } from "./runtimes/types.js";
@@ -52,16 +50,13 @@ export const CURATED_TOOLKITS: CuratedToolkit[] = [
 
 const DISPLAY_NAME_BY_SLUG = new Map(CURATED_TOOLKITS.map((t) => [t.slug, t.displayName]));
 
-let singleton: Composio<ClaudeAgentSDKProvider> | null = null;
+let singleton: Composio | null = null;
 
-export function getComposio(): Composio<ClaudeAgentSDKProvider> | null {
+export function getComposio(): Composio | null {
   if (singleton) return singleton;
   const apiKey = process.env.COMPOSIO_API_KEY;
   if (!apiKey) return null;
-  singleton = new Composio<ClaudeAgentSDKProvider>({
-    apiKey,
-    provider: new ClaudeAgentSDKProvider(),
-  });
+  singleton = new Composio({ apiKey });
   return singleton;
 }
 
@@ -481,12 +476,6 @@ function extractAccountIdentity(state: unknown, data: unknown): AccountIdentity 
   return out;
 }
 
-export async function renameConnection(connectionId: string, alias: string): Promise<void> {
-  const composio = getComposio();
-  if (!composio) throw new Error("COMPOSIO_API_KEY not set");
-  await composio.connectedAccounts.update(connectionId, { alias });
-}
-
 export class ComposioNeedsAuthConfigError extends Error {
   constructor(
     public readonly slug: string,
@@ -503,7 +492,7 @@ export class ComposioNeedsAuthConfigError extends Error {
 
 export async function authorizeToolkit(
   slug: string,
-  opts?: { callbackUrl?: string; alias?: string },
+  opts?: { callbackUrl?: string; alias?: string; scopes?: string[] },
 ): Promise<{ redirectUrl: string | null; connectionId: string }> {
   const composio = getComposio();
   if (!composio) throw new Error("COMPOSIO_API_KEY not set");
@@ -517,11 +506,25 @@ export async function authorizeToolkit(
   const existingConfig = (await composio.authConfigs.list({ toolkit: slug })).items[0];
   if (existingConfig) {
     authConfigId = existingConfig.id;
+    if (opts?.scopes?.length) {
+      if (!existingConfig.isComposioManaged) {
+        throw new Error(
+          `The custom ${slug} auth config must be updated with the approved scopes by maintenance before connecting.`,
+        );
+      }
+      await composio.authConfigs.update(authConfigId, {
+        type: "default",
+        scopes: [...new Set(opts.scopes)].sort().join(" "),
+      });
+    }
   } else {
     try {
       const created = await composio.authConfigs.create(slug, {
         type: "use_composio_managed_auth",
         name: `${displayNameFor(slug)} Auth Config`,
+        ...(opts?.scopes?.length
+          ? { credentials: { scopes: [...new Set(opts.scopes)].sort() } }
+          : {}),
       });
       authConfigId = created.id;
     } catch (err) {
@@ -560,37 +563,6 @@ export function buildComposioIntegrationModule(slug: string): IntegrationModule 
     name: slug,
     description: `${displayNameFor(slug)} (via Composio)`,
     requiredEnv: ["COMPOSIO_API_KEY"],
-    createServer: async (): Promise<McpSdkServerConfigWithInstance> => {
-      const composio = getComposio();
-      if (!composio) {
-        throw new Error(`[composio] cannot build ${slug} — COMPOSIO_API_KEY not set`);
-      }
-      // If the user has 2+ active connections for this toolkit, force Composio to
-      // require explicit account selection per tool call — otherwise it silently
-      // picks the default account.
-      const activeCount = (await listConnectedToolkits()).filter(
-        (c) => c.slug === slug && c.status === "ACTIVE",
-      ).length;
-      // Look up the auth config explicitly. Without this, composio.create() tries
-      // to auto-create one and 400s for BYO toolkits (Twitter etc.) that don't
-      // have a managed OAuth app available — error message even names the fix:
-      // "Please specify them in auth_configs."
-      const authConfig = (await composio.authConfigs.list({ toolkit: slug })).items[0];
-      const session = await composio.create(boopUserId(), {
-        toolkits: [slug],
-        manageConnections: false,
-        ...(authConfig ? { authConfigs: { [slug]: authConfig.id } } : {}),
-        ...(activeCount >= 2
-          ? { multiAccount: { enable: true, requireExplicitSelection: true } }
-          : {}),
-      });
-      const tools = await session.tools();
-      return createSdkMcpServer({
-        name: slug,
-        version: "0.1.0",
-        tools,
-      });
-    },
     createTools: async (): Promise<RuntimeTool[]> => {
       const composio = getComposio();
       if (!composio) {

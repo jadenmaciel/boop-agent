@@ -80,8 +80,8 @@ function parsePhones(output) {
 
 async function main() {
   const useGlobal = await hasBinary("sendblue");
-  const cmd = useGlobal ? "sendblue" : "npx";
-  const leading = useGlobal ? [] : ["-y", "@sendblue/cli"];
+  const cmd = useGlobal ? "sendblue" : "pnpm";
+  const leading = useGlobal ? [] : ["dlx", "@sendblue/cli"];
 
   console.log(`Running \`${cmd} ${[...leading, "lines"].join(" ")}\`…\n`);
 
@@ -91,7 +91,7 @@ async function main() {
   } catch (err) {
     console.error(`\n✗ Command failed: ${err.message}`);
     console.error(
-      `\nIf you aren't logged in yet, run:\n  npx @sendblue/cli login\nthen try again.`,
+      `\nIf you aren't logged in yet, run:\n  pnpm dlx @sendblue/cli login\nthen try again.`,
     );
     process.exit(1);
   }

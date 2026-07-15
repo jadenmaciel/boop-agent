@@ -1,7 +1,11 @@
-<!-- convex-ai-start -->
-This project uses [Convex](https://convex.dev) as its backend.
+# Agent guidance
 
-When working on Convex code, **always read `convex/_generated/ai/guidelines.md` first** for important guidelines on how to correctly use Convex APIs and patterns. The file contains rules that override what you may have learned about Convex from training data.
+This is the headless, owner-only Boop fork. Read `README.md` and `ARCHITECTURE.md` before changing trust boundaries.
 
-Convex agent skills for common tasks can be installed by running `npx convex ai-files install`.
-<!-- convex-ai-end -->
+- Use Node 22 and pnpm.
+- Add or change behavior test-first with Vitest.
+- Keep SQLite behind named `StateStore` methods; do not add an ORM or generic backend abstraction.
+- Keep Codex read-only and expose personal-data effects only through narrow typed tools.
+- Never weaken owner/signature checks, confirmation payload binding, Vault containment, browser address checks, or local-only maintenance routes.
+- Never add secrets, personal phone numbers, emails, hostnames, messages, or account IDs to this public repository.
+- Upstream changes are imported manually from the pinned base and reviewed before merge.

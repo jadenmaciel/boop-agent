@@ -1,5 +1,5 @@
+import { writeFileSync } from "node:fs";
 import { z } from "zod";
-import { createClaudeMcpServer } from "../runtimes/claude.js";
 import { defineRuntimeTool } from "../runtimes/tool.js";
 import { runtimeText, type RuntimeTool } from "../runtimes/types.js";
 import { getBrowserSettings } from "../runtime-config.js";
@@ -15,7 +15,6 @@ import {
   openBrowserUrl,
 } from "./launcher.js";
 
-const MCP_NAMESPACE = "browser";
 const RUNTIME_NAMESPACE = "local_browser";
 
 const FALLBACK_NOTE =
@@ -126,12 +125,14 @@ export function createBrowserTools(namespace = RUNTIME_NAMESPACE): RuntimeTool[]
               false,
             );
           }
+          const remoteAddress = requestRemoteDisplay();
           const result = await launchLocalBrowser({ url, forceVisible: true });
           return runtimeText(
             [
-              "I need you to log in first. I’ve spawned an instance on your machine.",
+              "I need you to log in first. I opened a temporary Tailscale-only display for 30 minutes.",
+              `Connect: ${remoteAddress}`,
               `Opened: ${result.url}`,
-              "Ask the user to reply when they are done logging in, then continue from the same browser profile.",
+              "Reply when you are done; I will continue with the same browser profile.",
             ].join("\n"),
           );
         } catch (err) {
@@ -142,6 +143,13 @@ export function createBrowserTools(namespace = RUNTIME_NAMESPACE): RuntimeTool[]
   ];
 }
 
-export function createBrowserMcp() {
-  return createClaudeMcpServer(MCP_NAMESPACE, createBrowserTools(MCP_NAMESPACE));
+function requestRemoteDisplay(): string {
+  const address = process.env.BOOP_TAILSCALE_ADDRESS?.trim();
+  if (!address || !/^[a-z0-9.:-]+$/i.test(address)) {
+    throw new Error("BOOP_TAILSCALE_ADDRESS is not configured.");
+  }
+  const requestPath =
+    process.env.BOOP_BROWSER_LOGIN_REQUEST_PATH ?? "/var/lib/boop/browser-login-request";
+  writeFileSync(requestPath, `${Date.now()}\n`, { mode: 0o600 });
+  return `vnc://${address}:5901`;
 }

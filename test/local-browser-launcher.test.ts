@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     close: vi.fn(async () => undefined),
     newPage: vi.fn(async () => page),
     on: vi.fn(),
+    route: vi.fn(async () => undefined),
     pages: vi.fn(() => [page]),
   };
   const launchPersistentContext = vi.fn(async () => {
@@ -53,6 +54,10 @@ vi.mock("patchright", () => ({
   chromium: {
     launchPersistentContext: mocks.launchPersistentContext,
   },
+}));
+
+vi.mock("../server/browser/url-policy.js", () => ({
+  assertPublicHttpUrl: vi.fn(async (url: string) => new URL(url).toString()),
 }));
 
 import { closeLocalBrowser, launchLocalBrowser } from "../server/browser/launcher.js";

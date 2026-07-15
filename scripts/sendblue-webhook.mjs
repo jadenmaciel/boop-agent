@@ -15,7 +15,7 @@
 
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -109,69 +109,19 @@ function commandEnv() {
   };
 }
 
-function spawnableNodeCommand() {
-  const candidates = [
-    process.env.BOOP_NODE_CMD,
-    resolveCommand("node"),
-    ...(process.platform === "darwin" ? ["/opt/homebrew/bin/node", "/usr/local/bin/node"] : []),
-    "node",
-  ].filter(Boolean);
-  return candidates.find((candidate) => candidate === "node" || existsSync(candidate)) ?? "node";
-}
-
-function nodeScriptCommand(scriptPath, leading) {
-  const node = spawnableNodeCommand();
-  return { cmd: node, leading: [scriptPath, ...leading] };
-}
-
-function npmExecCommand(packageName, binName) {
-  const npm = resolveCommand("npm");
-  if (npm) {
-    try {
-      const npmCli = realpathSync(npm);
-      if (npmCli.endsWith(".js")) {
-        return nodeScriptCommand(npmCli, [
-          "exec",
-          "--yes",
-          "--package",
-          packageName,
-          "--",
-          binName,
-        ]);
-      }
-    } catch {
-      /* fall through to spawning npm directly */
-    }
-    return {
-      cmd: npm,
-      leading: ["exec", "--yes", "--package", packageName, "--", binName],
-    };
-  }
-
-  const npx = resolveCommand("npx");
-  if (npx) {
-    try {
-      const npxCli = realpathSync(npx);
-      if (npxCli.endsWith(".js")) {
-        return nodeScriptCommand(npxCli, ["-y", packageName]);
-      }
-    } catch {
-      /* fall through to spawning npx directly */
-    }
-    return { cmd: npx, leading: ["-y", packageName] };
-  }
-
-  return null;
+function pnpmDlxCommand(packageName) {
+  const pnpm = resolveCommand("pnpm");
+  return pnpm ? { cmd: pnpm, leading: ["dlx", packageName] } : null;
 }
 
 function sendblueInvoker() {
   const sendblue = resolveCommand("sendblue");
   if (sendblue) return { cmd: sendblue, leading: [] };
 
-  const npmExec = npmExecCommand("@sendblue/cli", "sendblue");
-  if (npmExec) return npmExec;
+  const pnpmDlx = pnpmDlxCommand("@sendblue/cli");
+  if (pnpmDlx) return pnpmDlx;
 
-  throw new Error("Could not find sendblue, npx, or npm on PATH.");
+  throw new Error("Could not find sendblue or pnpm on PATH.");
 }
 
 function runCapture(cmd, args) {
