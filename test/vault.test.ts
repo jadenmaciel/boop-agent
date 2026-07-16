@@ -11,12 +11,18 @@ import {
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BulkApprovalRequired, VaultService } from "../server/vault.js";
 
 const roots: string[] = [];
+let previousUmask: number;
+
+beforeEach(() => {
+  previousUmask = process.umask(0o077);
+});
 
 afterEach(() => {
+  process.umask(previousUmask);
   delete process.env.BOOP_SYNC_BULK_MANIFEST_PATH;
   delete process.env.BOOP_READ_ONLY_DIR;
   delete process.env.BOOP_SYNC_PATH1_ID;
