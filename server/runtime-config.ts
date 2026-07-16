@@ -36,11 +36,37 @@ const BLOCKED_BROWSER_EXTRA_ARGS = new Set([
   "--host-resolver-rules",
   "--proxy-bypass-list",
   "--proxy-server",
+  "--disable-gpu-sandbox",
+  "--disable-namespace-sandbox",
+  "--disable-sandbox",
+  "--disable-seccomp-filter-sandbox",
+  "--disable-seccomp-sandbox",
+  "--disable-zygote-sandbox",
+  "--no-zygote-sandbox",
+  "--no-sandbox",
+  "--service-sandbox-type",
+  "--utility-sandbox-type",
+  "--disable-setuid-sandbox",
   "--remote-allow-origins",
   "--remote-debugging-address",
   "--remote-debugging-port",
   "--unsafely-treat-insecure-origin-as-secure",
   "--user-data-dir",
+]);
+const SANDBOX_DISABLING_BROWSER_ARGS = new Set([
+  "--disable-gpu-sandbox",
+  "--disable-namespace-sandbox",
+  "--disable-sandbox",
+  "--disable-seccomp-filter-sandbox",
+  "--disable-seccomp-sandbox",
+  "--disable-setuid-sandbox",
+  "--disable-zygote-sandbox",
+  "--no-zygote-sandbox",
+  "--no-sandbox",
+  "--service-sandbox-type",
+  "--utility-sandbox-type",
+  "--single-process",
+  "--in-process-gpu",
 ]);
 
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
@@ -75,14 +101,19 @@ export function resolveReasoningEffortInput(input: string): RuntimeReasoningEffo
 
 export function parseExtraArgs(input: string | null): string[] {
   if (!input) return [];
-  return input
+  const args = input
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line.startsWith("--"))
-    .filter((line) => {
-      const flag = line.toLowerCase().split(/[=\s]/, 1)[0]!;
-      return !BLOCKED_BROWSER_EXTRA_ARGS.has(flag);
-    });
+    .filter((line) => line.startsWith("--"));
+  assertSafeBrowserExtraArgs(args);
+  return args
+    .filter((line) => !BLOCKED_BROWSER_EXTRA_ARGS.has(browserExtraArgName(line)));
+}
+
+export function assertSafeBrowserExtraArgs(args: string[]): void {
+  if (args.some((arg) => SANDBOX_DISABLING_BROWSER_ARGS.has(browserExtraArgName(arg)))) {
+    throw new Error("Browser extra args cannot disable the browser sandbox.");
+  }
 }
 
 export function parseEnvExtraArgs(input: string | undefined): string[] {
@@ -106,8 +137,8 @@ export async function getBrowserSettings(): Promise<BrowserSettings> {
     startUrl: state.getSetting("browser_start_url") ?? process.env.BOOP_BROWSER_START_URL ?? "",
     channel: state.getSetting("browser_channel") ?? process.env.BOOP_BROWSER_CHANNEL ?? "chrome",
     executablePath:
-      state.getSetting("browser_executable_path") ??
       process.env.BOOP_BROWSER_EXECUTABLE_PATH ??
+      state.getSetting("browser_executable_path") ??
       "",
     extraArgs: parseExtraArgs(state.getSetting("browser_extra_args"))
       .concat(parseEnvExtraArgs(process.env.BOOP_BROWSER_EXTRA_ARGS)),
@@ -119,4 +150,8 @@ function boolSetting(stored: string | null, env: string | undefined, fallback: b
   if (value === "true" || value === "1") return true;
   if (value === "false" || value === "0") return false;
   return fallback;
+}
+
+function browserExtraArgName(arg: string): string {
+  return arg.toLowerCase().split(/[=\s]/, 1)[0]!;
 }

@@ -38,6 +38,7 @@ const app = createApp({
   ownerNumber,
   sendblueApiSecret,
   inbound,
+  vault,
 });
 const server = createServer(app);
 const stopAutomations = startAutomationLoop(state, messages);

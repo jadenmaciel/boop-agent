@@ -7,6 +7,7 @@
 - Added exact-owner Sendblue authentication before all side effects, one FIFO queue, durable webhook deduplication, and `STOP` cancellation.
 - Added payload- and provenance-bound one-hour confirmation codes, with Tailscale approval for high-risk actions.
 - Added typed Personal Vault tools, atomic writes, synced trash/restore, symlink containment, a 25-file bulk fuse, and operational journals.
+- Excluded Obsidian and local agent-state roots from every Personal Vault operation.
 - Added owner-sourced FTS5 memory, transactional automations, complete transcript retention, and 90-day operational retention.
 - Added confirmation-gated Composio writes and OAuth connection flows for Gmail, Calendar, and additional approved toolkits.
 - Added Patchright public-destination enforcement, persistent profiles, and temporary Tailscale-only login handoff.

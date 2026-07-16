@@ -6,6 +6,7 @@ import { InboundDeliveryService } from "./inbound-deliveries.js";
 import { PersonalAgent } from "./personal-agent.js";
 import { createSendblueRouter, normalizeE164 } from "./sendblue.js";
 import { StateStore } from "./state.js";
+import { VaultService } from "./vault.js";
 
 export function createApp(deps: {
   state: StateStore;
@@ -15,6 +16,7 @@ export function createApp(deps: {
   ownerNumber: string;
   sendblueApiSecret: string;
   inbound: InboundDeliveryService;
+  vault: VaultService;
 }) {
   const app = express();
   app.disable("x-powered-by");
@@ -49,6 +51,14 @@ export function createApp(deps: {
   });
   app.post("/internal/quiesce", (_req, res) => {
     res.json({ ok: true });
+  });
+  app.post("/internal/sync-ack", (req, res) => {
+    const sha256 = typeof req.body?.sha256 === "string" ? req.body.sha256 : "";
+    if (!/^[a-f0-9]{64}$/.test(sha256)) return res.status(400).json({ error: "sha256 required" });
+    if (!deps.vault.acknowledgeBulkSync(sha256)) {
+      return res.status(409).json({ error: "bulk sync authorization was not consumed" });
+    }
+    return res.json({ ok: true, consumed: true });
   });
   return app;
 }

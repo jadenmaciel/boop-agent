@@ -3,6 +3,7 @@ import {
   closeSync,
   existsSync,
   fsyncSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -11,6 +12,7 @@ import {
   realpathSync,
   renameSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -20,7 +22,19 @@ const MAX_AUTONOMOUS_FILES = 25;
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 const TEXT_EXTENSIONS = new Set([".csv", ".json", ".md", ".txt", ".yaml", ".yml"]);
 const IMAGE_EXTENSIONS = new Set([".gif", ".jpeg", ".jpg", ".png", ".webp"]);
-const PROTECTED_TOP_LEVEL = new Set([".boop", ".boop-trash", ".git", "secure"]);
+const PROTECTED_TOP_LEVEL = new Set([
+  ".boop",
+  ".boop-trash",
+  ".claude",
+  ".code-review-graph",
+  ".codex",
+  ".git",
+  ".omx",
+  ".research",
+  ".token-usage",
+  "obsidian",
+  "secure",
+]);
 
 export interface VaultManifest {
   operation: "trash" | "move" | "restore";
@@ -129,9 +143,14 @@ export class VaultService {
     mkdirSync(trashRoot, { recursive: true });
     const source = this.resolveUserPath(path, true);
     const destination = join(trashRoot, basename(source));
-    renameSync(source, destination);
+    const authorization = this.authorizeBulkSync(manifest);
+    try {
+      renameSync(source, destination);
+    } catch (error) {
+      this.removeBulkSyncAuthorization(authorization);
+      throw error;
+    }
     this.journal(operationId, "trash", manifest);
-    this.authorizeBulkSync(manifest);
     return { operationId, fileCount: manifest.fileCount, destination: relative(this.root, destination) };
   }
 
@@ -144,9 +163,14 @@ export class VaultService {
     mkdirSync(dirname(destination), { recursive: true });
     this.assertNoSymlinkPath(dirname(destination));
     if (existsSync(destination)) throw new Error("Vault destination already exists.");
-    renameSync(source, destination);
+    const authorization = this.authorizeBulkSync(manifest);
+    try {
+      renameSync(source, destination);
+    } catch (error) {
+      this.removeBulkSyncAuthorization(authorization);
+      throw error;
+    }
     this.journal(randomUUID(), "move", manifest);
-    this.authorizeBulkSync(manifest);
   }
 
   restore(operationId: string, destinationPath: string, approvedManifestHash?: string) {
@@ -188,9 +212,14 @@ export class VaultService {
     mkdirSync(dirname(destination), { recursive: true });
     this.assertNoSymlinkPath(dirname(destination));
     if (existsSync(destination)) throw new Error("Vault destination already exists.");
-    renameSync(source, destination);
+    const authorization = this.authorizeBulkSync(manifest);
+    try {
+      renameSync(source, destination);
+    } catch (error) {
+      this.removeBulkSyncAuthorization(authorization);
+      throw error;
+    }
     this.journal(randomUUID(), "restore", manifest);
-    this.authorizeBulkSync(manifest);
     return { fileCount: manifest.fileCount, destination: destinationPath };
   }
 
@@ -230,18 +259,71 @@ export class VaultService {
     });
   }
 
-  private authorizeBulkSync(manifest: VaultManifest): void {
-    if (manifest.fileCount <= MAX_AUTONOMOUS_FILES) return;
+  private authorizeBulkSync(manifest: VaultManifest): string | null {
+    if (manifest.fileCount <= MAX_AUTONOMOUS_FILES) return null;
     const path = process.env.BOOP_SYNC_BULK_MANIFEST_PATH;
-    if (!path) return;
+    if (!path) throw new Error("Bulk sync manifest path is not configured.");
+    const path1 = process.env.BOOP_SYNC_PATH1_ID;
+    const path2 = process.env.BOOP_SYNC_PATH2_ID;
+    const session = process.env.BOOP_SYNC_SESSION_ID;
+    if (!path1 || !path2 || !session) {
+      throw new Error("Bulk sync identity is not configured.");
+    }
+    if (existsSync(path)) {
+      throw new Error("A prior bulk Vault change is still awaiting synchronization.");
+    }
     const temporary = `${path}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, JSON.stringify({
-      operation: manifest.operation,
-      hash: manifest.hash,
-      expiresAt: Date.now() + 60 * 60 * 1_000,
-      files: manifest.files.map((file) => ({ path: file.path })),
-    }), { mode: 0o640 });
-    renameSync(temporary, path);
+    try {
+      const payload = JSON.stringify({
+        version: 1,
+        mode: "bulk",
+        path1,
+        path2,
+        session,
+        expiresAt: Date.now() + 60 * 60 * 1_000,
+        files: manifest.files.map((file) => ({ side: "vps", path: file.path })),
+      });
+      writeFileSync(temporary, payload, { mode: 0o640, flag: "wx" });
+      const file = openSync(temporary, "r");
+      try {
+        fsyncSync(file);
+      } finally {
+        closeSync(file);
+      }
+      linkSync(temporary, path);
+      unlinkSync(temporary);
+      const directory = openSync(dirname(path), "r");
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
+      return createHash("sha256").update(payload).digest("hex");
+    } catch (error) {
+      if (existsSync(temporary)) unlinkSync(temporary);
+      throw error;
+    }
+  }
+
+  acknowledgeBulkSync(expectedSha256: string): boolean {
+    const path = process.env.BOOP_SYNC_BULK_MANIFEST_PATH;
+    if (!/^[a-f0-9]{64}$/.test(expectedSha256) || !path || !existsSync(path)) return false;
+    const info = lstatSync(path);
+    if (!info.isFile() || info.isSymbolicLink()) return false;
+    const actualSha256 = createHash("sha256").update(readFileSync(path)).digest("hex");
+    if (actualSha256 !== expectedSha256) return false;
+    unlinkSync(path);
+    const directory = openSync(dirname(path), "r");
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
+    return true;
+  }
+
+  private removeBulkSyncAuthorization(expectedSha256: string | null): void {
+    if (expectedSha256) this.acknowledgeBulkSync(expectedSha256);
   }
 
   private fileEntry(absolute: string) {

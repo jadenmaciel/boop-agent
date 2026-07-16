@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("../server/runtime-config.js", () => ({
+  assertSafeBrowserExtraArgs: vi.fn(),
   getBrowserSettings: vi.fn(async () => mocks.settings),
 }));
 
@@ -61,6 +62,7 @@ vi.mock("../server/browser/url-policy.js", () => ({
   pinnedBrowserResolverArg: vi.fn(async () => "--host-resolver-rules=MAP example.com 93.184.216.34"),
 }));
 
+import { assertSafeBrowserExtraArgs } from "../server/runtime-config.js";
 import { closeLocalBrowser, launchLocalBrowser } from "../server/browser/launcher.js";
 
 describe("local browser launcher lifecycle", () => {
@@ -89,6 +91,13 @@ describe("local browser launcher lifecycle", () => {
       url: "https://example.com/",
     });
     expect(statSync(mocks.settings.profileDir).mode & 0o777).toBe(0o700);
+    expect(assertSafeBrowserExtraArgs).toHaveBeenCalledWith([
+      "--host-resolver-rules=MAP example.com 93.184.216.34",
+    ]);
+    expect(mocks.launchPersistentContext).toHaveBeenCalledWith(
+      mocks.settings.profileDir,
+      expect.objectContaining({ chromiumSandbox: true }),
+    );
     await close;
 
     expect(mocks.context.close).toHaveBeenCalledTimes(1);

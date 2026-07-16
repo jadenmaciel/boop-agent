@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import type { BrowserContext, Page } from "patchright";
 import { assertPublicHttpUrl, pinnedBrowserResolverArg } from "./url-policy.js";
 import {
+  assertSafeBrowserExtraArgs,
   getBrowserSettings,
   type BrowserSettings,
 } from "../runtime-config.js";
@@ -299,10 +300,13 @@ export async function launchLocalBrowser(
   launchPromise = (async () => {
     const settings = await getBrowserSettings();
     assertBrowserEnabled(settings);
+    assertSafeBrowserExtraArgs(settings.extraArgs);
     const { chromium } = await loadPatchright();
     const showUi = options.forceVisible ? true : settings.showUi;
     const executablePath = effectiveBrowserExecutablePath(settings);
     const resolverArg = await pinnedBrowserResolverArg();
+    const browserArgs = [...settings.extraArgs, resolverArg];
+    assertSafeBrowserExtraArgs(browserArgs);
     const signature = launchSignature(settings, showUi, resolverArg);
     const targetUrl = normalizeUrl(options.url ?? settings.startUrl);
     if (targetUrl !== "about:blank") await assertPublicHttpUrl(targetUrl);
@@ -327,8 +331,9 @@ export async function launchLocalBrowser(
 
     const launchArgs = {
       headless: !showUi,
+      chromiumSandbox: true,
       viewport: null,
-      args: [...settings.extraArgs, resolverArg],
+      args: browserArgs,
       ...(executablePath
         ? { executablePath }
         : { channel: settings.channel || "chrome" }),
