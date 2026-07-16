@@ -1,0 +1,91 @@
+server/index.ts
+  s_4e6618efed9198::t_7f872a6d3167f1 41
+CHANGELOG.md
+  s_4e6618efed9198::t_d5cf3239ed8517 10
+test/local-browser-launcher.test.ts
+  s_4e6618efed9198::t_b73be5f0c7b165 65,94-96
+  s_4e6618efed9198::t_0932038eee19f9 50
+  s_4e6618efed9198::t_cf4205b7e71a72 97-100
+server/app.ts
+  s_df1b799a1b74d3::t_ce7cfdec630149 55-57
+  s_4e6618efed9198::t_042647b5b565ed 58-61
+  s_4e6618efed9198::t_7f872a6d3167f1 9,19
+  s_4e6618efed9198::t_e8f6bfcf3c44d5 62
+server/vault.ts
+  s_4e6618efed9198::t_531facc6fc7b8a 25-37
+  s_df1b799a1b74d3::t_ce7cfdec630149 6,146-152,166-172,215-221,262-263,271-273,277,285-286,293-294,301,308,310-314,323-326
+  s_4e6618efed9198::t_7f872a6d3167f1 15,266-270,274,276,305-307,309,315-322
+  s_4e6618efed9198::t_d2846373717dd6 265,278-284,287-292,295-300,302-304
+test/vault.test.ts
+  s_4e6618efed9198::t_8304ae18dd2147 39
+  s_4e6618efed9198::t_b73be5f0c7b165 46-51,58-61,82,175-178
+  s_df1b799a1b74d3::t_0bfae99d1c42b0 11,119-124
+  s_4e6618efed9198::t_b60b914a849021 1-10,118,128-139
+  s_4e6618efed9198::t_b2235d08ed244d 54-55,70-78,80-81,83-87
+  s_df1b799a1b74d3::t_6685f60612df25 52,140,142-167
+  s_4e6618efed9198::t_6bc9c6b0799e5c 56,62-63,65-69,79
+  s_4e6618efed9198::t_7f872a6d3167f1 22-24,100-102,108-117
+  s_4e6618efed9198::t_5a7af3ae0e8dd3 57,64
+  s_8a5ea0b887af57::t_27b1b463930362 53,141
+server/runtime-config.ts
+  s_4e6618efed9198::t_7155c2c9d52b18 141
+  s_4e6618efed9198::t_ea1165086fc35e 39-44,57-61,63
+  s_4e6618efed9198::t_327dd4d8c27d20 56,62,65,70,104,107,109,114-115
+  s_4e6618efed9198::t_f4ded2538b0414 108
+  s_4e6618efed9198::t_b73be5f0c7b165 45,47-48,64,66-67
+  s_4e6618efed9198::t_453e79e8f3cc39 68-69
+  s_4e6618efed9198::t_544495753fe882 46,49,110-113,116,154-156
+  s_bbd68c78b765d6::t_3ee28655e036ae 157
+test/local-browser-security.test.ts
+  s_4e6618efed9198::t_b73be5f0c7b165 51-52
+  s_4e6618efed9198::t_327dd4d8c27d20 10,12,32,36
+  s_4e6618efed9198::t_04d988dc4415ac 2-6,33-35,37,42-43,55,61
+  s_4e6618efed9198::t_1dd1496113916a 38-40
+  s_4e6618efed9198::t_ea1165086fc35e 44,46,48
+  s_4e6618efed9198::t_fd4d682ccaca26 41,45,47,49-50,56-60
+  s_4e6618efed9198::t_0f2824a3b97599 53-54
+server/browser/launcher.ts
+  s_4e6618efed9198::t_544495753fe882 8,303
+  s_4e6618efed9198::t_b73be5f0c7b165 308-309,336
+  s_4e6618efed9198::t_cf4205b7e71a72 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c89e68cf1605e8789ab88fa6db284a7e68f4d017",
+  "prompts": {},
+  "sessions": {
+    "s_4e6618efed9198": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6771-42ed-7ed1-b609-d34102bfce9c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_8a5ea0b887af57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3b1e1cd-e340-4031-8a35-789dcea1e964",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_bbd68c78b765d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f5894fb4-fd0e-44e8-ac41-f125ff8d40a6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    },
+    "s_df1b799a1b74d3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f66bd-7362-7880-bfd7-5ee734db2b64",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    }
+  }
+}
