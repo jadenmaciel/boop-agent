@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_9d538b6002e86f::t_f79cb4aad5a3f3 3,10,14
+server/composio.ts
+  s_9d538b6002e86f::t_845a5cbed60fde 533-541,560-569
+test/composio-policy.test.ts
+  s_9d538b6002e86f::t_99875e72117b6d 4,33-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b00df6ece195d6447397bc2ba5468a4edfff7873",
+  "prompts": {},
+  "sessions": {
+    "s_9d538b6002e86f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1eec2b4a-a54d-44fc-a2d8-c173e282f680",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Jaden Maciel-Shapiro <j.shapiro@expitrans.com>"
+    }
+  }
+}
