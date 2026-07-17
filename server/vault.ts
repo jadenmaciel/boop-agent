@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   closeSync,
   existsSync,
   fsyncSync,
@@ -284,6 +285,7 @@ export class VaultService {
         files: manifest.files.map((file) => ({ side: "vps", path: file.path })),
       });
       writeFileSync(temporary, payload, { mode: 0o640, flag: "wx" });
+      chmodSync(temporary, 0o640);
       const file = openSync(temporary, "r");
       try {
         fsyncSync(file);
