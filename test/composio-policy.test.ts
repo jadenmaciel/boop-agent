@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   composioToolEffect,
+  hasExactOAuthScopes,
   validateComposioConnectionRequest,
 } from "../server/composio.js";
 
@@ -28,5 +29,12 @@ describe("Composio maintenance policy", () => {
       .not.toThrow();
     expect(() => validateComposioConnectionRequest("gmail", ["gmail.modify"]))
       .toThrow(/not approved/);
+  });
+
+  it("accepts a custom OAuth config only when its scopes match exactly", () => {
+    expect(hasExactOAuthScopes(["gmail.send", "gmail.readonly"], ["gmail.readonly", "gmail.send"]))
+      .toBe(true);
+    expect(hasExactOAuthScopes("gmail.readonly gmail.send", ["gmail.readonly"]))
+      .toBe(false);
   });
 });
