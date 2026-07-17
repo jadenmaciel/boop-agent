@@ -530,6 +530,15 @@ export class ComposioNeedsAuthConfigError extends Error {
   }
 }
 
+export function hasExactOAuthScopes(configured: unknown, requested: string[]): boolean {
+  const scopes = Array.isArray(configured)
+    ? configured.filter((scope): scope is string => typeof scope === "string")
+    : typeof configured === "string"
+      ? configured.split(/\s+/).filter(Boolean)
+      : [];
+  return [...new Set(scopes)].sort().join(" ") === [...new Set(requested)].sort().join(" ");
+}
+
 export async function authorizeToolkit(
   slug: string,
   opts?: { callbackUrl?: string; alias?: string; scopes?: string[] },
@@ -548,14 +557,17 @@ export async function authorizeToolkit(
     authConfigId = existingConfig.id;
     if (opts?.scopes?.length) {
       if (!existingConfig.isComposioManaged) {
-        throw new Error(
-          `The custom ${slug} auth config must be updated with the approved scopes by maintenance before connecting.`,
-        );
+        if (!hasExactOAuthScopes(existingConfig.credentials?.scopes, opts.scopes)) {
+          throw new Error(
+            `The custom ${slug} auth config must be updated with the approved scopes by maintenance before connecting.`,
+          );
+        }
+      } else {
+        await composio.authConfigs.update(authConfigId, {
+          type: "default",
+          scopes: [...new Set(opts.scopes)].sort().join(" "),
+        });
       }
-      await composio.authConfigs.update(authConfigId, {
-        type: "default",
-        scopes: [...new Set(opts.scopes)].sort().join(" "),
-      });
     }
   } else {
     try {
