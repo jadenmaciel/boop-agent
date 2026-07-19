@@ -113,7 +113,7 @@ async function main() {
   }
 
   if (!existsSync(envPath)) {
-    console.error(`\n✗ .env.local not found. Run \`npm run setup\` first.`);
+    console.error("\n.env.local not found. Create it from .env.example first.");
     process.exit(1);
   }
 
@@ -129,7 +129,7 @@ async function main() {
   writeFileSync(envPath, content);
 
   console.log(`\n✓ Updated .env.local → SENDBLUE_FROM_NUMBER=${phone}`);
-  console.log(`  Restart \`npm run dev\` to pick up the change.`);
+  console.log("  Restart `pnpm start` to pick up the change.");
 }
 
 main().catch((err) => {

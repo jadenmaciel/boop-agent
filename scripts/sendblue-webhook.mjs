@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-// Registers (or re-registers) the inbound message webhook with Sendblue, so
-// free-ngrok users don't have to paste into the dashboard every time their
-// tunnel URL rotates.
+// Registers (or re-registers) the inbound message webhook with Sendblue after
+// a local or development tunnel URL rotates.
 //
 // Usage:
 //   node scripts/sendblue-webhook.mjs <public-webhook-url>
